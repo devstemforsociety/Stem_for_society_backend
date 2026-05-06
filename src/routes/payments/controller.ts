@@ -799,33 +799,33 @@ export const verifyClientPayment: RequestHandler = async (
 };
 
 // Debug endpoint to check environment variables and webhook setup
-export const debugWebhook: RequestHandler = async (
-  req: Request,
-  res: Response,
-) => {
-  try {
-    const debugInfo = {
-      webhookSecretExists: !!RZPY_WH_SECRET,
-      webhookSecretLength: RZPY_WH_SECRET?.length || 0,
-      webhookSecretPreview: RZPY_WH_SECRET?.substring(0, 10) + "..." || "Not found",
-      environment: process.env.NODE_ENV || "development",
-      paymentMode: process.env.PAYMENT_MODE || "Not set",
-      timestamp: new Date().toISOString(),
-    };
+// export const debugWebhook: RequestHandler = async (
+//   req: Request,
+//   res: Response,
+// ) => {
+//   try {
+//     const debugInfo = {
+//       webhookSecretExists: !!RZPY_WH_SECRET,
+//       webhookSecretLength: RZPY_WH_SECRET?.length || 0,
+//       webhookSecretPreview: RZPY_WH_SECRET?.substring(0, 10) + "..." || "Not found",
+//       environment: process.env.NODE_ENV || "development",
+//       paymentMode: process.env.PAYMENT_MODE || "Not set",
+//       timestamp: new Date().toISOString(),
+//     };
 
-    console.log("[DEBUG]: Webhook debug info:", debugInfo);
+//     console.log("[DEBUG]: Webhook debug info:", debugInfo);
 
-    res.json({
-      message: "Webhook debug information",
-      data: debugInfo,
-    });
-  } catch (error) {
-    console.log("🚀 ~ debugWebhook ~ error:", error);
-    res.status(500).json({
-      error: "Server error in debug endpoint",
-    });
-  }
-};
+//     res.json({
+//       message: "Webhook debug information",
+//       data: debugInfo,
+//     });
+//   } catch (error) {
+//     console.log("🚀 ~ debugWebhook ~ error:", error);
+//     res.status(500).json({
+//       error: "Server error in debug endpoint",
+//     });
+//   }
+// };
 
 // ...rest of existing code...
 
