@@ -9,6 +9,7 @@ import {
 } from "../../db/schema";
 import { JWT_SECRET_PT, JWT_SECRET_STU } from "../../middleware";
 import {
+  AUTH_COOKIE_MAX_AGE_MS,
   INVALID_SESSION_MSG,
   STUDENT_AUTH_COOKIE_NAME,
 } from "../../utils/constants";
@@ -266,6 +267,8 @@ export const signIn: RequestHandler = async (req: Request, res: Response) => {
     res.cookie(STUDENT_AUTH_COOKIE_NAME, token, {
       httpOnly: true,
       secure: true,
+      maxAge: AUTH_COOKIE_MAX_AGE_MS,
+      sameSite: "lax",
     });
     res.json({
       data: {
