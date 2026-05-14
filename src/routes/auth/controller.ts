@@ -83,7 +83,7 @@ export const signIn: RequestHandler = async (req: Request, res: Response) => {
     if (!user) {
       console.log(`User not found: ${signInUserValidation.data.email}`);
       res.status(404).json({
-        error: "Invalid credentials",
+        error: "User not Found! Please sign up first",
       });
       return;
     }
