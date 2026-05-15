@@ -231,6 +231,13 @@ export const approveTraining: RequestHandler = async (
                 }),
               ),
             );
+            console.log(
+              "🚀 ~ approveTraining ~ cancellation email sent:",
+              {
+                trainingId: trainingId.data,
+                recipients: paidRecipients.size,
+              },
+            );
           }
         }
       } catch (noticeError) {
