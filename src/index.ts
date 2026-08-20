@@ -20,7 +20,6 @@ import testRouter from "./routes/test/route";
 import trainingRouter from "./routes/training/route";
 import { Worker } from "bullmq";
 import { CERT_QUEUE_NAME, PDFGenerationType} from "./redis";
-import {redis} from "./redis"
 import { generateCertificate } from "./utils/pdf";
 import homeRouter from "./routes/home/route";
 import emailRouter from "./routes/email/route"
@@ -45,7 +44,7 @@ const corsOptions = {
   origin: "*",
   credentials: true,
   methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization", "Cookie"],
+  allowedHeaders: ["Content-Type", "Authorization", "Cookie", "X-Correlation-Id"],
   optionsSuccessStatus: 200
 };
 

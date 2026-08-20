@@ -35,6 +35,27 @@ const formatDateToString = (date: Date | string | null | undefined): string | nu
   return null;
 };
 
+/**
+ * Authoritative pricing for individual / institution registrations, in paise.
+ *
+ * The client used to send the amount it wanted to be charged, which meant a
+ * modified request could buy a 3,000 rupee service for one rupee (SFS-02).
+ * Prices now live here and here only. Returns 0 for combinations that are
+ * enquiry-only and take no payment.
+ */
+function priceForEnquiryInPaise(
+  type: "individual" | "institution",
+  serviceInterest?: string | null,
+): number {
+  if (type === "institution") {
+    // Single-theme is an enquiry, not a purchase.
+    if (serviceInterest === "single-theme") return 0;
+    return 30_00_000; // ₹30,000
+  }
+
+  return 3_00_000; // ₹3,000
+}
+
 export const individualOrInstitutionRegistration: RequestHandler = async (req:Request, res:Response) => {
   try{
     console.log("🚀 ~ individualOrInstitutionRegistration ~ req.body:", req.body);
@@ -47,11 +68,18 @@ export const individualOrInstitutionRegistration: RequestHandler = async (req:Re
       await db.transaction(async (tx) => {
       const { data } = dataParsed;
       
-      const FinalAmount = data.amount ? data.amount : 0;
-      if(FinalAmount <= 0){
+      // Price is decided here, never by the caller. Mirrors the published
+      // pricing: institution single-theme is enquiry-only, everything else is
+      // a flat rate per audience.
+      const FinalAmount = priceForEnquiryInPaise(
+        data.type,
+        data.serviceInterest,
+      );
+
+      if (FinalAmount <= 0) {
         res.status(400).json({
           success: false,
-          error: "Amount must be greater than zero!",
+          error: "This service is not available for online payment.",
         });
         return;
       }
@@ -258,7 +286,7 @@ export const enrollPsychologyCounselling: RequestHandler = async (
       ...req.body,
       idCard:
         req.file && req.file.buffer
-          ? new File([req.file!.buffer], req.file!.filename, {
+          ? new File([new Uint8Array(req.file!.buffer)], req.file!.filename, {
               type: req.file!.mimetype,
             })
           : null,

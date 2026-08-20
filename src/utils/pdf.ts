@@ -258,7 +258,7 @@ export async function generateCertificate(data: PDFGenerationType) {
     const pdfName = slugify(
       data.courseName + "-" + data.name + "-" + data.certificateId + "-",
     );
-    const pdfFile = new File([pdfBuffer], pdfName, { type: "application/pdf" });
+    const pdfFile = new File([new Uint8Array(pdfBuffer)], pdfName, { type: "application/pdf" });
 
     const { data: pdfURL, error } = await supabase.storage
       .from("s4s-media")

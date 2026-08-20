@@ -6,9 +6,9 @@ import { trainingLessonTable, trainingTable } from "../../db/schema";
 import { INVALID_SESSION_MSG } from "../../utils/constants";
 import { z } from "zod";
 import { supabase, SUPABASE_PROJECT_URL } from "../../supabase";
-import { pdfQ } from "../../redis";
 import { nanoid } from "nanoid";
 import cloudinary, {
+  isCloudinaryConfigured,
   CLOUDINARY_API_KEY,
   CLOUDINARY_API_SECRET,
   CLOUDINARY_CLOUD_NAME,
@@ -939,6 +939,14 @@ export const generateUploadSignature: RequestHandler = async (
       });
       return;
     }
+    if (!isCloudinaryConfigured) {
+      res.status(503).json({
+        error:
+          "Media uploads are temporarily unavailable. Please try again later.",
+      });
+      return;
+    }
+
     const timestamp = Math.round(new Date().getTime() / 1000);
     const signature = cloudinary.utils.api_sign_request(
       {
@@ -976,6 +984,14 @@ export const deleteAsset: RequestHandler = async (
       });
       return;
     }
+    if (!isCloudinaryConfigured) {
+      res.status(503).json({
+        error:
+          "Media management is temporarily unavailable. Please try again later.",
+      });
+      return;
+    }
+
     const publicId = req.body.public_id;
     await cloudinary.uploader.destroy(publicId, {}, (res) => {
       console.log(res);

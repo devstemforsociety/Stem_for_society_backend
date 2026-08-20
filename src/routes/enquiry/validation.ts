@@ -22,7 +22,9 @@ export const IndividualOrInstitutionnSchema = z.object({
   serviceInterest : z.string().max(200).nullish().or(z.literal("")),
   selectedDate: z.string().min(2, "Select a valid date"),
   selectedTime: z.string().min(2, "Select a valid time"),
-  amount : z.number().positive().nullish(),
+  // `amount` is deliberately absent: the price is derived on the server from
+  // `type` and `serviceInterest`. Zod strips it, so a client that still sends
+  // one cannot influence what it is charged (SFS-02).
 })
 
 export const institutionPlanSchema = z.object({

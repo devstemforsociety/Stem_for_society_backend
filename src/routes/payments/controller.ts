@@ -611,7 +611,9 @@ export const getPaymentStatus: RequestHandler = async (
   res: Response,
 ) => {
   try {
-    const { orderId } = req.params;
+    // Express 5 types route params as string | string[]; a single-segment
+    // param is always a string.
+    const orderId = String(req.params.orderId);
     
     const transaction = await db.query.transactionTable.findFirst({
       where: eq(transactionTable.orderId, orderId),

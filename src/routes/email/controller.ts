@@ -343,9 +343,12 @@ export const sendOTP: RequestHandler = async (req: Request, res: Response) => {
         // Send email with new OTP
         await transporter.sendMail(mailOptions);
         
+        // Never return the OTP record: it carries the code itself, so echoing
+        // it let anyone request a code for an address they do not own and read
+        // it straight out of the response (SFS-03).
         res.json({
             message: "Institution registration OTP sent successfully",
-            data: otpRecord
+            data: { email: otpRecord.email, expiresAt: otpRecord.expiresAt }
         });
         
         console.log("Institution registration OTP sent successfully");
@@ -422,9 +425,10 @@ export const sendOTPReset: RequestHandler = async (req: Request, res: Response) 
         // Send email with new OTP
         await transporter.sendMail(mailOptions);
         
+        // See above: the OTP must never travel back to the caller (SFS-03).
         res.json({
             message: "Password reset OTP sent successfully",
-            data: otpRecord
+            data: { email: otpRecord.email, expiresAt: otpRecord.expiresAt }
         });
         
         console.log("Password reset OTP sent successfully");

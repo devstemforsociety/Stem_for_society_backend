@@ -100,7 +100,7 @@ export const createBlog: RequestHandler = async (
     const rawData = req.body;
     const blogEntry = createBlogSchema.safeParse({
       ...rawData,
-      coverImage: new File([req.file!.buffer], req.file!.filename, {
+      coverImage: new File([new Uint8Array(req.file!.buffer)], req.file!.filename, {
         type: req.file!.mimetype,
       }),
       references: JSON.parse(rawData.references),

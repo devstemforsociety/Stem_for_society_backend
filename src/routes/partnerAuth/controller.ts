@@ -34,12 +34,12 @@ export const registerUser: RequestHandler = async (
       ...rawData,
       trainingTopics: rawData.trainingTopics ? JSON.parse(rawData.trainingTopics) : [],
       logo: files?.logo?.[0] 
-        ? new File([files.logo[0].buffer], files.logo[0].originalname, {
+        ? new File([new Uint8Array(files.logo[0].buffer)], files.logo[0].originalname, {
             type: files.logo[0].mimetype,
           })
         : undefined,
       digitalSign: files?.digitalSign?.[0]
-        ? new File([files.digitalSign[0].buffer], files.digitalSign[0].originalname, {
+        ? new File([new Uint8Array(files.digitalSign[0].buffer)], files.digitalSign[0].originalname, {
             type: files.digitalSign[0].mimetype,
           })
         : undefined,
