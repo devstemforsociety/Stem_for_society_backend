@@ -17,6 +17,18 @@ import { emailEquals, normaliseEmail } from "../../utils/email";
 const email = process.env.EMAIL;
 const pass = process.env.APP_PASS;
 
+/**
+ * Sender address for every outgoing message.
+ *
+ * Transport is Gmail authenticated as EMAIL, and Gmail rewrites (or rejects) a
+ * From header that is not the authenticated account or a verified "Send mail
+ * as" alias. The hard-coded noreply@/wellness@/careers@/partnerships@
+ * stemforsociety.com senders therefore never reached recipients as written,
+ * and pointed at a domain the site does not use. Deriving it from EMAIL keeps
+ * the From header, the SMTP login and the published contact address in sync.
+ */
+const FROM_ADDRESS = email ?? "info@stemforsociety.org";
+
 const BRAND_PRIMARY = "#2f8ef7";
 const BRAND_DARK = "#0b3f8c";
 const BRAND_BG = "#f6f9fc";
@@ -55,7 +67,7 @@ function renderEmailShell({ title, subtitle, preheader, contentHtml, footerHtml 
         const safeSubtitle = subtitle ? escapeHtml(subtitle) : "";
         const footer = footerHtml || `
                 <div class="footer">
-                        <div>Need help? Contact us at support@stemforsociety.com</div>
+                        <div>Need help? Contact us at info@stemforsociety.org</div>
                         <div>STEM for Society · www.stemforsociety.org</div>
                         <div>© ${new Date().getFullYear()} STEM for Society. All rights reserved.</div>
                 </div>
@@ -260,14 +272,14 @@ function generateTrainingCancellationEmail(details: TrainingCancellationNoticeIn
         </div>
         <div class="section">
           <div class="section-title">Need help?</div>
-          <p class="lead" style="margin: 0;">Please contact support@stemforsociety.com for assistance.</p>
+          <p class="lead" style="margin: 0;">Please contact info@stemforsociety.org for assistance.</p>
         </div>
     `;
 
     return {
         from: {
             name: "STEM for Society",
-            address: "noreply@stemforsociety.com",
+            address: FROM_ADDRESS,
         },
         to: userEmail,
         subject: `Course update: ${courseName} | STEM for Society`,
@@ -309,7 +321,7 @@ export const sendOTP: RequestHandler = async (req: Request, res: Response) => {
         const mailOptions = {
             from: {
                 name: 'STEM for Society',
-                address: 'noreply@stemforsociety.com'
+                address: FROM_ADDRESS
             },
             to: email,
             subject: 'Verify Your Email - Institution Registration | STEM for Society',
@@ -396,7 +408,7 @@ export const sendOTPReset: RequestHandler = async (req: Request, res: Response) 
         const mailOptions = {
             from: {
                 name: 'STEM for Society',
-                address: 'noreply@stemforsociety.com'
+                address: FROM_ADDRESS
             },
             to: email,
             subject: 'Password Reset Verification - STEM for Society',
@@ -514,7 +526,7 @@ function generateInstitutionRegistrationOTPTemplate(otp: number, email?: string,
 
         const footerHtml = `
                 <div class="footer">
-                    <div>Need help with registration? support@stemforsociety.com</div>
+                    <div>Need help with registration? info@stemforsociety.org</div>
                     <div>STEM for Society · www.stemforsociety.org</div>
                     <div>© ${new Date().getFullYear()} STEM for Society. All rights reserved.</div>
                 </div>
@@ -560,7 +572,7 @@ function generatePasswordResetOTPTemplate(otp: number, email: string): string {
 
         const footerHtml = `
                 <div class="footer">
-                    <div>Need assistance? support@stemforsociety.com</div>
+                    <div>Need assistance? info@stemforsociety.org</div>
                     <div>STEM for Society · www.stemforsociety.org</div>
                     <div>© ${new Date().getFullYear()} STEM for Society. All rights reserved.</div>
                 </div>
@@ -1054,7 +1066,7 @@ function generateCourseRegistrationEmail(details: any) {
 
     const footerHtml = `
         <div class="footer">
-          <div>Questions? support@stemforsociety.com</div>
+          <div>Questions? info@stemforsociety.org</div>
           <div>STEM for Society · www.stemforsociety.org</div>
           <div>© ${new Date().getFullYear()} STEM for Society. All rights reserved.</div>
         </div>
@@ -1063,7 +1075,7 @@ function generateCourseRegistrationEmail(details: any) {
     return {
         from: {
             name: 'STEM for Society',
-            address: 'noreply@stemforsociety.com'
+            address: FROM_ADDRESS
         },
         to: userEmail,
         subject: `Course Registration Confirmed - ${courseName} | STEM for Society`,
@@ -1162,7 +1174,7 @@ function generateMentalWellbeingEmail(details: any) {
 
     const footerHtml = `
         <div class="footer">
-          <div>Wellness support: wellness@stemforsociety.com</div>
+          <div>Wellness support: info@stemforsociety.org</div>
           <div>STEM for Society · www.stemforsociety.org</div>
           <div>© ${new Date().getFullYear()} STEM for Society. Your mental health matters.</div>
         </div>
@@ -1171,7 +1183,7 @@ function generateMentalWellbeingEmail(details: any) {
     return {
         from: {
             name: 'STEM for Society - Wellness',
-            address: 'wellness@stemforsociety.com'
+            address: FROM_ADDRESS
         },
         to: userEmail,
         subject: `Mental Wellbeing Session Confirmed | STEM for Society`,
@@ -1216,7 +1228,7 @@ function generateCareerCounselingEmail(details: any) {
 
     const footerHtml = `
         <div class="footer">
-          <div>Career services: careers@stemforsociety.com</div>
+          <div>Career services: info@stemforsociety.org</div>
           <div>STEM for Society · www.stemforsociety.org</div>
           <div>© ${new Date().getFullYear()} STEM for Society. Empowering your career journey.</div>
         </div>
@@ -1225,7 +1237,7 @@ function generateCareerCounselingEmail(details: any) {
     return {
         from: {
             name: 'STEM for Society - Career Services',
-            address: 'careers@stemforsociety.com'
+            address: FROM_ADDRESS
         },
         to: userEmail,
         subject: `Career Counseling Confirmed | STEM for Society`,
@@ -1271,7 +1283,7 @@ function generateInstitutionBookingEmail(details: any) {
 
     const footerHtml = `
         <div class="footer">
-          <div>Partnerships: partnerships@stemforsociety.com</div>
+          <div>Partnerships: info@stemforsociety.org</div>
           <div>STEM for Society · www.stemforsociety.org/institutions</div>
           <div>© ${new Date().getFullYear()} STEM for Society. Building educational partnerships.</div>
         </div>
@@ -1280,7 +1292,7 @@ function generateInstitutionBookingEmail(details: any) {
     return {
         from: {
             name: 'STEM for Society - Partnerships',
-            address: 'partnerships@stemforsociety.com'
+            address: FROM_ADDRESS
         },
         to: userEmail,
         subject: `Institution Partnership Confirmed | ${institutionName}`,
@@ -1315,7 +1327,7 @@ function generateGeneralPaymentEmail(details: any) {
     return {
         from: {
             name: 'STEM for Society',
-            address: 'noreply@stemforsociety.com'
+            address: FROM_ADDRESS
         },
         to: userEmail,
         subject: `Payment Successful | STEM for Society`,
@@ -1347,7 +1359,7 @@ function generateCourseReminderEmail({ userEmail, userName, courseName, startISO
     return {
         from: {
             name: 'STEM for Society',
-            address: 'noreply@stemforsociety.com'
+            address: FROM_ADDRESS
         },
         to: userEmail,
         subject: `Reminder: ${courseName} starts ${whenLabel}`,
