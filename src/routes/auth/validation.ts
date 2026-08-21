@@ -3,7 +3,7 @@ import { z } from "zod";
 const PASSWORD_REGEX =
   /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
 const PASSWORD_RULE_MESSAGE =
-  "Password must be at least 8 characters long and contain both letters and numbers";
+  "Password must be at least 8 characters long and include an uppercase letter, a lowercase letter, a number and one of @$!%*?&";
 
 export const registerUserSchema = z
   .object({
@@ -27,7 +27,10 @@ export const registerUserSchema = z
 
 export const signInUserSchema = z.object({
   email: z.string().email("Invalid email"),
-  password: z.string().regex(PASSWORD_REGEX, PASSWORD_RULE_MESSAGE),
+  // Sign-in must not enforce the registration policy: accounts created before
+  // the current rule would be permanently locked out, and echoing the policy
+  // to unauthenticated callers leaks it. Credentials are checked below.
+  password: z.string().min(1, "Password is required"),
 });
 
 export const getUserInfoSchema = z

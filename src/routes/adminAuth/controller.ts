@@ -5,10 +5,11 @@ import { JWT_SECRET_AD } from "../../middleware";
 import {
   ADMIN_AUTH_COOKIE_NAME,
   AUTH_COOKIE_MAX_AGE_MS,
+  INVALID_CREDENTIALS_MSG,
   INVALID_SESSION_MSG,
 } from "../../utils/constants";
 import { signJWT } from "../../utils/jwt";
-import { verifyPassword } from "../../utils/password";
+import { fakeVerifyPassword, verifyPassword } from "../../utils/password";
 import { authRoleEnum, createValidationError } from "../../utils/validation";
 import { signInUserSchema } from "./validation";
 
@@ -88,19 +89,23 @@ export const signIn: RequestHandler = async (req: Request, res: Response) => {
         return operators.eq(fields.email, signInUserValidation.data.email);
       },
     });
-    if (!user) {
-      res.status(404).json({
-        error: "Please sign up first",
+    // Unknown account and incomplete stored credentials take the same path as
+    // a wrong password: same status, same message, same PBKDF2 cost. Any
+    // difference between them lets a caller enumerate registered emails.
+    if (!user?.hash || !user.salt) {
+      await fakeVerifyPassword(signInUserValidation.data.password);
+      res.status(401).json({
+        error: INVALID_CREDENTIALS_MSG,
       });
       return;
     }
     const doPwdMatch = await verifyPassword(
-      { hash: user.hash!, salt: user.salt! },
+      { hash: user.hash, salt: user.salt },
       signInUserValidation.data.password,
     );
     if (!doPwdMatch) {
-      res.status(404).json({
-        error: "Invalid credentials",
+      res.status(401).json({
+        error: INVALID_CREDENTIALS_MSG,
       });
       return;
     }

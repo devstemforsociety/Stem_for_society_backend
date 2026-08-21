@@ -77,3 +77,25 @@ export function verifyPassword(
     );
   });
 }
+
+/**
+ * A salt/hash pair that no password can match, used only to burn the same
+ * PBKDF2 work as a real verification.
+ */
+const DUMMY_SALT = "0".repeat(SALT_LENGTH * 2);
+const DUMMY_HASH = "0".repeat(PASSWORD_LENGTH * 2);
+
+/**
+ * Performs the same PBKDF2 work as verifyPassword and always resolves false.
+ *
+ * Call this when sign-in cannot find the account, or the stored credentials
+ * are incomplete. Returning early in those cases makes the response
+ * measurably faster than a wrong-password response, which re-opens the user
+ * enumeration that a shared error message is meant to close.
+ */
+export function fakeVerifyPassword(passwordAttempt: string): Promise<boolean> {
+  return verifyPassword(
+    { salt: DUMMY_SALT, hash: DUMMY_HASH },
+    passwordAttempt,
+  );
+}

@@ -8,13 +8,18 @@ import {
 } from "./validation";
 import { db } from "../../db/connection";
 import { userTable } from "../../db/schema";
-import { generateHashPassword, verifyPassword } from "../../utils/password";
+import {
+  fakeVerifyPassword,
+  generateHashPassword,
+  verifyPassword,
+} from "../../utils/password";
 import { authRoleEnum, createValidationError } from "../../utils/validation";
 import { DatabaseError } from "pg";
 import { signJWT } from "../../utils/jwt";
 import { JWT_SECRET_STU } from "../../middleware";
 import {
   AUTH_COOKIE_MAX_AGE_MS,
+  INVALID_CREDENTIALS_MSG,
   INVALID_SESSION_MSG,
   STUDENT_AUTH_COOKIE_NAME,
 } from "../../utils/constants";
@@ -67,10 +72,8 @@ export const registerUser: RequestHandler = async (
 
 export const signIn: RequestHandler = async (req: Request, res: Response) => {
   try {
-    console.log(`Sign-in attempt for: ${req.body?.email}`);
     const signInUserValidation = signInUserSchema.safeParse(req.body);
     if (!signInUserValidation.success) {
-      console.log("Validation failed:", signInUserValidation.error.errors);
       res.status(400).json({
         errors: createValidationError(signInUserValidation),
       });
@@ -81,21 +84,23 @@ export const signIn: RequestHandler = async (req: Request, res: Response) => {
         return operators.eq(fields.email, signInUserValidation.data.email);
       },
     });
-    if (!user) {
-      console.log(`User not found: ${signInUserValidation.data.email}`);
-      res.status(404).json({
-        error: "User not Found! Please sign up first",
+    // Unknown account and incomplete stored credentials take the same path as
+    // a wrong password: same status, same message, same PBKDF2 cost. Any
+    // difference between them lets a caller enumerate registered emails.
+    if (!user?.hash || !user.salt) {
+      await fakeVerifyPassword(signInUserValidation.data.password);
+      res.status(401).json({
+        error: INVALID_CREDENTIALS_MSG,
       });
       return;
     }
     const doPwdMatch = await verifyPassword(
-      { hash: user?.hash!, salt: user?.salt! },
+      { hash: user.hash, salt: user.salt },
       signInUserValidation.data.password,
     );
     if (!doPwdMatch) {
-      console.log(`Password mismatch for: ${signInUserValidation.data.email}`);
-      res.status(404).json({
-        error: "Invalid credentials",
+      res.status(401).json({
+        error: INVALID_CREDENTIALS_MSG,
       });
       return;
     }
