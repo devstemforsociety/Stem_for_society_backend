@@ -1,6 +1,13 @@
 import { Router } from "express";
 import { requireAuthToken } from "../../middleware";
-import { captureFeedback, getTraining, getTrainings, getskillDevelopments, getFinishingSchools } from "./controller";
+import {
+  captureFeedback,
+  enrolFreeTraining,
+  getTraining,
+  getTrainings,
+  getskillDevelopments,
+  getFinishingSchools,
+} from "./controller";
 
 const studentTrainingRouter = Router();
 
@@ -19,6 +26,11 @@ studentTrainingRouter.get(
   "/:trainingId",
   requireAuthToken("STUDENT", false),
   getTraining,
+);
+studentTrainingRouter.post(
+  "/:trainingId/enroll",
+  requireAuthToken("STUDENT"),
+  enrolFreeTraining,
 );
 studentTrainingRouter.post(
   "/:trainingId/feedback",

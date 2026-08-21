@@ -5,6 +5,14 @@ import { userOtp, userTable } from "../../db/schema/users";
 import { and, eq } from "drizzle-orm";
 import * as path from "path";
 const { randomInt } = require("crypto");
+import { JWT_SECRET_STU } from "../../middleware";
+import { signPasswordResetToken } from "../../utils/jwt";
+import {
+  claimReceipt,
+  releaseReceipt,
+  resolveVerifiedPayment,
+} from "../../utils/verifiedPayment";
+import { emailEquals, normaliseEmail } from "../../utils/email";
 
 const email = process.env.EMAIL;
 const pass = process.env.APP_PASS;
@@ -284,7 +292,9 @@ export async function sendTrainingCancellationNotice(
 
 export const sendOTP: RequestHandler = async (req: Request, res: Response) => {
     try {
-        const email = req.body.email;
+        // Stored and matched lowercase so an OTP cannot be stranded on a
+        // differently-cased spelling of the same address.
+        const email = normaliseEmail(req.body.email ?? "");
         const phone = req.body.mobile;
         const institutionName = req.body.institutionName;
         if (!email) {
@@ -362,13 +372,18 @@ export const sendOTP: RequestHandler = async (req: Request, res: Response) => {
 
 export const sendOTPReset: RequestHandler = async (req: Request, res: Response) => {
     try {
-        const email = req.body.email;
+        // Stored and matched lowercase so an OTP cannot be stranded on a
+        // differently-cased spelling of the same address.
+        const email = normaliseEmail(req.body.email ?? "");
         if (!email) {
             res.status(400).json({ error: "Email is required" });
             return;
         }
         
-        const isexist = await db.select().from(userTable).where(eq(userTable.email, email));
+        const isexist = await db
+            .select()
+            .from(userTable)
+            .where(emailEquals(userTable.email, email));
         if (isexist.length === 0) {
             res.status(400).json({ error: "Email does not exist" });
             return;
@@ -562,7 +577,8 @@ function generatePasswordResetOTPTemplate(otp: number, email: string): string {
 
 export const verifyOTP: RequestHandler = async (req: Request, res: Response) => {
     try {
-        const { email, otp } = req.body;
+        const { email: emailUnsafe, otp } = req.body;
+        const email = normaliseEmail(emailUnsafe ?? "");
         if (!email || !otp) {
             res.status(400).json({ error: "Email and OTP are required" });
             return;
@@ -586,8 +602,13 @@ export const verifyOTP: RequestHandler = async (req: Request, res: Response) => 
 
         // Delete the OTP record after successful verification
         await db.delete(userOtp).where(eq(userOtp.email, email));
-        console.log("OTP deleted after verification:", email);
-        res.json({ message: "OTP verified successfully" });
+
+        // Proof that this caller controls the mailbox, which /auth/reset-password
+        // requires before it will change a password. The OTP itself is spent
+        // above, so the token is the only thing carrying that proof forward.
+        const resetToken = await signPasswordResetToken(email, JWT_SECRET_STU!);
+
+        res.json({ message: "OTP verified successfully", resetToken });
         
     } catch (error) {
         console.error("Error verifying OTP:", error);
@@ -619,9 +640,29 @@ export const sendCourseRegistrationEmail: RequestHandler = async (req: Request, 
             return;
         }
 
+        // The caller may name any address; only the one recorded against a
+        // successful payment is actually used. See resolveVerifiedPayment.
+        const verified = await resolveVerifiedPayment(paymentId);
+        if (!verified) {
+            res.status(403).json({
+                error: "No successful payment matches this request.",
+            });
+            return;
+        }
+
+        // The webhook sends this too. Whoever claims first sends; the other
+        // reports success without emailing the customer twice.
+        if (!(await claimReceipt(verified))) {
+            res.json({
+                message: "Receipt already sent",
+                recipient: verified.email,
+            });
+            return;
+        }
+
         const mailOptions = generateCourseRegistrationEmail({
-            userEmail,
-            userName,
+            userEmail: verified.email,
+            userName: verified.name || userName,
             amount,
             currency: currency || 'INR',
             paymentId,
@@ -633,19 +674,30 @@ export const sendCourseRegistrationEmail: RequestHandler = async (req: Request, 
             }
         });
         console.log("Generated Mail Options:", mailOptions);
-        await transporter.sendMail(mailOptions);
+        try {
+            await transporter.sendMail(mailOptions);
+        } catch (sendError) {
+            // Hand the claim back so the webhook can still deliver it.
+            await releaseReceipt(verified);
+            throw sendError;
+        }
         
         res.json({
             message: "Course registration email sent successfully",
-            recipient: userEmail
+            recipient: verified.email
         });
         
-        console.log(`Course registration email sent to ${userEmail}`);
+        console.log(`Course registration email sent to ${verified.email}`);
         // schedule reminders 24 hours and 1 hour before the class if startDate provided
         try {
             const startISO = startDate || additionalDetailsStartFromBody(req.body);
             if (startISO) {
-                scheduleCourseReminders({ userEmail, userName, courseName, startISO });
+                scheduleCourseReminders({
+                    userEmail: verified.email,
+                    userName: verified.name || userName,
+                    courseName,
+                    startISO,
+                });
             }
         } catch (sErr) {
             console.error('Error scheduling reminders:', sErr);
@@ -675,9 +727,29 @@ export const sendMentalWellbeingEmail: RequestHandler = async (req: Request, res
             return;
         }
 
+        // The caller may name any address; only the one recorded against a
+        // successful payment is actually used. See resolveVerifiedPayment.
+        const verified = await resolveVerifiedPayment(paymentId);
+        if (!verified) {
+            res.status(403).json({
+                error: "No successful payment matches this request.",
+            });
+            return;
+        }
+
+        // The webhook sends this too. Whoever claims first sends; the other
+        // reports success without emailing the customer twice.
+        if (!(await claimReceipt(verified))) {
+            res.json({
+                message: "Receipt already sent",
+                recipient: verified.email,
+            });
+            return;
+        }
+
         const mailOptions = generateMentalWellbeingEmail({
-            userEmail,
-            userName,
+            userEmail: verified.email,
+            userName: verified.name || userName,
             amount,
             currency: currency || 'INR',
             paymentId,
@@ -688,14 +760,20 @@ export const sendMentalWellbeingEmail: RequestHandler = async (req: Request, res
             }
         });
 
-        await transporter.sendMail(mailOptions);
+        try {
+            await transporter.sendMail(mailOptions);
+        } catch (sendError) {
+            // Hand the claim back so the webhook can still deliver it.
+            await releaseReceipt(verified);
+            throw sendError;
+        }
         
         res.json({
             message: "Mental wellbeing email sent successfully",
-            recipient: userEmail
+            recipient: verified.email
         });
         
-        console.log(`Mental wellbeing email sent to ${userEmail}`);
+        console.log(`Mental wellbeing email sent to ${verified.email}`);
         
     } catch (error) {
         console.error("Error sending mental wellbeing email:", error);
@@ -721,9 +799,29 @@ export const sendCareerCounselingEmail: RequestHandler = async (req: Request, re
             return;
         }
 
+        // The caller may name any address; only the one recorded against a
+        // successful payment is actually used. See resolveVerifiedPayment.
+        const verified = await resolveVerifiedPayment(paymentId);
+        if (!verified) {
+            res.status(403).json({
+                error: "No successful payment matches this request.",
+            });
+            return;
+        }
+
+        // The webhook sends this too. Whoever claims first sends; the other
+        // reports success without emailing the customer twice.
+        if (!(await claimReceipt(verified))) {
+            res.json({
+                message: "Receipt already sent",
+                recipient: verified.email,
+            });
+            return;
+        }
+
         const mailOptions = generateCareerCounselingEmail({
-            userEmail,
-            userName,
+            userEmail: verified.email,
+            userName: verified.name || userName,
             amount,
             currency: currency || 'INR',
             paymentId,
@@ -734,14 +832,20 @@ export const sendCareerCounselingEmail: RequestHandler = async (req: Request, re
             }
         });
 
-        await transporter.sendMail(mailOptions);
+        try {
+            await transporter.sendMail(mailOptions);
+        } catch (sendError) {
+            // Hand the claim back so the webhook can still deliver it.
+            await releaseReceipt(verified);
+            throw sendError;
+        }
         
         res.json({
             message: "Career counseling email sent successfully",
-            recipient: userEmail
+            recipient: verified.email
         });
         
-        console.log(`Career counseling email sent to ${userEmail}`);
+        console.log(`Career counseling email sent to ${verified.email}`);
         
     } catch (error) {
         console.error("Error sending career counseling email:", error);
@@ -768,9 +872,29 @@ export const sendInstitutionPartnershipEmail: RequestHandler = async (req: Reque
             return;
         }
 
+        // The caller may name any address; only the one recorded against a
+        // successful payment is actually used. See resolveVerifiedPayment.
+        const verified = await resolveVerifiedPayment(paymentId);
+        if (!verified) {
+            res.status(403).json({
+                error: "No successful payment matches this request.",
+            });
+            return;
+        }
+
+        // The webhook sends this too. Whoever claims first sends; the other
+        // reports success without emailing the customer twice.
+        if (!(await claimReceipt(verified))) {
+            res.json({
+                message: "Receipt already sent",
+                recipient: verified.email,
+            });
+            return;
+        }
+
         const mailOptions = generateInstitutionBookingEmail({
-            userEmail,
-            userName,
+            userEmail: verified.email,
+            userName: verified.name || userName,
             amount,
             currency: currency || 'INR',
             paymentId,
@@ -782,14 +906,20 @@ export const sendInstitutionPartnershipEmail: RequestHandler = async (req: Reque
             }
         });
 
-        await transporter.sendMail(mailOptions);
+        try {
+            await transporter.sendMail(mailOptions);
+        } catch (sendError) {
+            // Hand the claim back so the webhook can still deliver it.
+            await releaseReceipt(verified);
+            throw sendError;
+        }
         
         res.json({
             message: "Institution partnership email sent successfully",
-            recipient: userEmail
+            recipient: verified.email
         });
         
-        console.log(`Institution partnership email sent to ${userEmail}`);
+        console.log(`Institution partnership email sent to ${verified.email}`);
         
     } catch (error) {
         console.error("Error sending institution partnership email:", error);
@@ -814,9 +944,29 @@ export const sendGeneralPaymentEmail: RequestHandler = async (req: Request, res:
             return;
         }
 
+        // The caller may name any address; only the one recorded against a
+        // successful payment is actually used. See resolveVerifiedPayment.
+        const verified = await resolveVerifiedPayment(paymentId);
+        if (!verified) {
+            res.status(403).json({
+                error: "No successful payment matches this request.",
+            });
+            return;
+        }
+
+        // The webhook sends this too. Whoever claims first sends; the other
+        // reports success without emailing the customer twice.
+        if (!(await claimReceipt(verified))) {
+            res.json({
+                message: "Receipt already sent",
+                recipient: verified.email,
+            });
+            return;
+        }
+
         const mailOptions = generateGeneralPaymentEmail({
-            userEmail,
-            userName,
+            userEmail: verified.email,
+            userName: verified.name || userName,
             amount,
             currency: currency || 'INR',
             paymentId,
@@ -826,14 +976,20 @@ export const sendGeneralPaymentEmail: RequestHandler = async (req: Request, res:
             }
         });
 
-        await transporter.sendMail(mailOptions);
+        try {
+            await transporter.sendMail(mailOptions);
+        } catch (sendError) {
+            // Hand the claim back so the webhook can still deliver it.
+            await releaseReceipt(verified);
+            throw sendError;
+        }
         
         res.json({
             message: "General payment email sent successfully",
-            recipient: userEmail
+            recipient: verified.email
         });
         
-        console.log(`General payment email sent to ${userEmail}`);
+        console.log(`General payment email sent to ${verified.email}`);
         
     } catch (error) {
         console.error("Error sending general payment email:", error);
@@ -1252,5 +1408,65 @@ function scheduleCourseReminders({ userEmail, userName, courseName, startISO }: 
                 console.log(`Scheduled ${r.whenLabel} reminder for ${userEmail} (in ${Math.round(delay / 1000)}s)`);
             }
         }
+    }
+}
+/**
+ * Sends the receipt for a confirmed payment from the server side.
+ *
+ * The browser fires a receipt call of its own after checkout, but that is
+ * best effort: close the tab, lose the network, and the customer paid and
+ * heard nothing. The webhook is the only side that always runs, so it sends
+ * too - claimReceipt makes sure exactly one of them wins.
+ *
+ * Never throws. A receipt that could not be sent must not fail the webhook,
+ * because Razorpay would then retry a payment that was already recorded.
+ */
+export async function sendPaymentReceipt(paymentId: string): Promise<void> {
+    try {
+        const verified = await resolveVerifiedPayment(paymentId);
+        if (!verified) return;
+
+        // The browser got there first; it has already emailed the customer.
+        if (!(await claimReceipt(verified))) return;
+
+        const common = {
+            userEmail: verified.email,
+            userName: verified.name,
+            amount: verified.amount,
+            currency: 'INR',
+            paymentId,
+            transactionDate: new Date(),
+        };
+
+        const mailOptions =
+            verified.kind === "course"
+                ? generateCourseRegistrationEmail({
+                      ...common,
+                      additionalDetails: { course_name: verified.detail },
+                  })
+                : verified.kind === "career"
+                  ? generateCareerCounselingEmail({
+                        ...common,
+                        additionalDetails: { counseling_type: verified.detail },
+                    })
+                  : verified.kind === "psychology"
+                    ? generateMentalWellbeingEmail({
+                          ...common,
+                          additionalDetails: { session_type: verified.detail },
+                      })
+                    : generateInstitutionBookingEmail({
+                          ...common,
+                          additionalDetails: { institution_name: verified.detail },
+                      });
+
+        try {
+            await transporter.sendMail(mailOptions);
+        } catch (sendError) {
+            await releaseReceipt(verified);
+            throw sendError;
+        }
+        console.log(`[receipt] sent to ${verified.email} for ${paymentId}`);
+    } catch (error) {
+        console.error("[receipt] could not send receipt:", error);
     }
 }

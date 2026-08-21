@@ -100,6 +100,19 @@ app.use("/partner/auth/sign-in", authLimiter);
 app.use(["/email/sendOTP", "/email/resetOTP"], otpSendLimiter);
 app.use("/email/verifyOTP", otpVerifyLimiter);
 app.use("/payments/create", paymentLimiter);
+// Receipt endpoints now resolve the payment server-side before sending, so
+// each call costs database work even when it is rejected. 20/hour is well
+// above what a real checkout needs and well below useful abuse.
+app.use(
+  [
+    "/email/send-course-registration",
+    "/email/send-mental-wellbeing",
+    "/email/send-career-counseling",
+    "/email/send-institution-booking",
+    "/email/send-general-payment",
+  ],
+  paymentLimiter,
+);
 app.use("/enquiry", paymentLimiter);
 
 app.use("/auth", authRouter);

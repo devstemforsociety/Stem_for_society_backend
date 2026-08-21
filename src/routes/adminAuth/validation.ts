@@ -7,7 +7,7 @@ export const registerUserSchema = z.object({
       message:
         "Company name should not contain special characters and must be within 100 letters",
     }),
-  email: z.string().email("Invalid email address"),
+  email: z.string().trim().toLowerCase().email("Invalid email address"),
   cinOrGst: z.string().min(10, "CIN / GST Number must be provided"),
   owner: z.string().refine((value) => /^[a-zA-Z\s]{3,100}$/g.test(value), {
     message:
@@ -39,7 +39,7 @@ export const registerUserSchema = z.object({
 });
 
 export const signInUserSchema = z.object({
-  email: z.string().email("Invalid email"),
+  email: z.string().trim().toLowerCase().email("Invalid email"),
   // Sign-in must not enforce the registration policy: accounts created before
   // the current rule would be permanently locked out, and echoing the policy
   // to unauthenticated callers leaks it. Credentials are checked below.

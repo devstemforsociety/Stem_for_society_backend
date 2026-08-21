@@ -19,9 +19,5 @@ adminPartnersRouter.post(
   requireAuthToken("ADMIN"),
   approvePartner,
 );
-adminPartnersRouter.get(
-  "/:partnerId/accounts/verify",
-  requireAuthToken("ADMIN"),
-);
 
 export default adminPartnersRouter;

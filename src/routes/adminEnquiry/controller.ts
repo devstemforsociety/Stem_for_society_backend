@@ -70,42 +70,42 @@ export const getIndividualTrainings: RequestHandler = async (
   }
 };
 
-// export const getCareerCounselling: RequestHandler = async (
-//   req: Request,
-//   res: Response,
-// ) => {
-//   try {
-//     const partnerAuth = req.auth["ADMIN"];
-//     if (!partnerAuth) {
-//       res.status(401).json({
-//         error: INVALID_SESSION_MSG,
-//       });
-//       return;
-//     }
-//     const careerCounselling = await db.query.careerCounsellingTable.findMany({
-//       with: {
-//         transactions: {
-//           with: {
-//             transaction: true,
-//           },
-//           orderBy(fields, operators) {
-//             return operators.desc(fields.updatedAt);
-//           },
-//         },
-//       },
-//       orderBy(fields, operators) {
-//         return operators.desc(fields.createdAt);
-//       },
-//     });
+export const getCareerCounselling: RequestHandler = async (
+  req: Request,
+  res: Response,
+) => {
+  try {
+    const partnerAuth = req.auth["ADMIN"];
+    if (!partnerAuth) {
+      res.status(401).json({
+        error: INVALID_SESSION_MSG,
+      });
+      return;
+    }
+    const careerCounselling = await db.query.careerCounsellingTable.findMany({
+      with: {
+        transactions: {
+          with: {
+            transaction: true,
+          },
+          orderBy(fields, operators) {
+            return operators.desc(fields.updatedAt);
+          },
+        },
+      },
+      orderBy(fields, operators) {
+        return operators.desc(fields.createdAt);
+      },
+    });
 
-//     res.json({ data: careerCounselling });
-//   } catch (error) {
-//     debugLog("🚀 ~ getCareerCounselling ~ error:", error);
-//     res.status(500).json({
-//       error: "Server error in fetching career counselling details",
-//     });
-//   }
-// };
+    res.json({ data: careerCounselling });
+  } catch (error) {
+    debugLog("🚀 ~ getCareerCounselling ~ error:", error);
+    res.status(500).json({
+      error: "Server error in fetching career counselling details",
+    });
+  }
+};
 
 export const getCAApplications: RequestHandler = async (
   req: Request,

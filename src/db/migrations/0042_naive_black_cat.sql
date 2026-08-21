@@ -1,0 +1,1 @@
+ALTER TABLE "career_counselling" ADD COLUMN "id_card_url" text;

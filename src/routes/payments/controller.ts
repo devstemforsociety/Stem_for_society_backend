@@ -1,4 +1,5 @@
 import { debugLog } from "../../utils/logger";
+import { sendPaymentReceipt } from "../email/controller";
 import { and, eq } from "drizzle-orm";
 import { Request, RequestHandler, Response } from "express";
 import { nanoid } from "nanoid";
@@ -597,6 +598,19 @@ export const verifyPayment: RequestHandler = async (
 
     // @ts-expect-error llosu
     await verifyAndProcessPayment(rawData, webhookVerified, rzpyIdempotency);
+
+    /**
+     * Receipts used to be sent only by the browser after checkout, so a
+     * customer who closed the tab paid and heard nothing. One call here covers
+     * every flow: sendPaymentReceipt re-checks that the transaction really is
+     * successful, and claims it so the browser's own call cannot duplicate it.
+     * It never throws - a failed receipt must not make Razorpay retry a
+     * payment that is already recorded.
+     */
+    const paidId = rawData?.payload?.payment?.entity?.id;
+    if (typeof paidId === "string") {
+      await sendPaymentReceipt(paidId);
+    }
 
     res.json({ success: true });
   } catch (error) {

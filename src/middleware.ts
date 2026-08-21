@@ -1,11 +1,6 @@
 import { debugLog } from "./utils/logger";
 import { NextFunction, Request, RequestHandler, Response } from "express";
-import {
-  ADMIN_AUTH_COOKIE_NAME,
-  INVALID_SESSION_MSG,
-  PARTNER_AUTH_COOKIE_NAME,
-  STUDENT_AUTH_COOKIE_NAME,
-} from "./utils/constants";
+import { INVALID_SESSION_MSG } from "./utils/constants";
 import { verifyJWT } from "./utils/jwt";
 import { authRoleEnum, commonAuthCookieSchema } from "./utils/validation";
 
@@ -20,15 +15,16 @@ if (!JWT_SECRET_STU || !JWT_SECRET_AD || !JWT_SECRET_PT)
 
 export { JWT_SECRET_AD, JWT_SECRET_PT, JWT_SECRET_STU };
 
+/**
+ * Each role verifies against its own secret, which is what stops a token
+ * minted for one role from being accepted as another.
+ */
 const nameMap: {
-  [key in typeof authRoleEnum._type]: {
-    cookieName: string;
-    secret: string;
-  };
+  [key in typeof authRoleEnum._type]: { secret: string };
 } = {
-  STUDENT: { cookieName: STUDENT_AUTH_COOKIE_NAME, secret: JWT_SECRET_STU },
-  ADMIN: { cookieName: ADMIN_AUTH_COOKIE_NAME, secret: JWT_SECRET_AD },
-  PARTNER: { cookieName: PARTNER_AUTH_COOKIE_NAME, secret: JWT_SECRET_PT },
+  STUDENT: { secret: JWT_SECRET_STU },
+  ADMIN: { secret: JWT_SECRET_AD },
+  PARTNER: { secret: JWT_SECRET_PT },
 };
 
 /**
@@ -98,7 +94,6 @@ export const requireAuthToken: (
         next();
         return;
       }
-      res.clearCookie(nameMap[role].cookieName);
       res.status(401).json({
         error: INVALID_SESSION_MSG,
       });

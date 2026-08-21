@@ -33,7 +33,7 @@ const fileValidation = z
   .optional();
 
 export const partnerProfileSchema = z.object({
-  email: z.string().email("Invalid email address"),
+  email: z.string().trim().toLowerCase().email("Invalid email address"),
   firstName: z.string().refine((value) => /^[a-zA-Z\s]{3,100}$/g.test(value), {
     message:
       "Contact name should not contain special characters and must be within 100 letters",

@@ -1,4 +1,5 @@
 import { debugLog } from "../../utils/logger";
+import { emailEquals } from "../../utils/email";
 import { RequestHandler, Request, Response } from "express";
 import {
   getUserInfoSchema,
@@ -15,13 +16,11 @@ import {
 } from "../../utils/password";
 import { authRoleEnum, createValidationError } from "../../utils/validation";
 import { DatabaseError } from "pg";
-import { signJWT } from "../../utils/jwt";
+import { signJWT, verifyPasswordResetToken } from "../../utils/jwt";
 import { JWT_SECRET_STU } from "../../middleware";
 import {
-  AUTH_COOKIE_MAX_AGE_MS,
   INVALID_CREDENTIALS_MSG,
   INVALID_SESSION_MSG,
-  STUDENT_AUTH_COOKIE_NAME,
 } from "../../utils/constants";
 import { eq } from "drizzle-orm";
 
@@ -81,7 +80,7 @@ export const signIn: RequestHandler = async (req: Request, res: Response) => {
     }
     const user = await db.query.userTable.findFirst({
       where(fields, operators) {
-        return operators.eq(fields.email, signInUserValidation.data.email);
+        return emailEquals(fields.email, signInUserValidation.data.email);
       },
     });
     // Unknown account and incomplete stored credentials take the same path as
@@ -114,13 +113,13 @@ export const signIn: RequestHandler = async (req: Request, res: Response) => {
       createdAt: user.createdAt,
     };
     const token = await signJWT(userAuth, JWT_SECRET_STU!);
-    res.cookie(STUDENT_AUTH_COOKIE_NAME, token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      maxAge: AUTH_COOKIE_MAX_AGE_MS,
-      sameSite: "lax",
-    });
-    console.log(`Successful sign-in for: ${signInUserValidation.data.email}`);
+    /**
+     * No cookie is set here on purpose. Authentication is Bearer-token only -
+     * requireAuthToken reads Authorization and never looks at cookies - so the
+     * httpOnly cookie this used to set was never read by anything. It implied
+     * an XSS protection that did not exist, since the token the client
+     * actually uses is the one returned below.
+     */
     res.json({
       data: {
         token,
@@ -175,12 +174,26 @@ export const resetPassword: RequestHandler = async (req: Request, res: Response)
       res.status(400).json({ errors: parsed.error.flatten().fieldErrors });
       return;
     }
-    const { email, newPassword } = parsed.data;
+    const { email, newPassword, resetToken } = parsed.data;
+
+    // The token proves this caller just passed the emailed OTP for THIS
+    // address. Comparing the two matters: a valid token for one account must
+    // not be usable to reset another.
+    const tokenEmail = await verifyPasswordResetToken(
+      resetToken,
+      JWT_SECRET_STU!,
+    );
+    if (!tokenEmail || tokenEmail.toLowerCase() !== email.toLowerCase()) {
+      res.status(401).json({
+        error: "Password reset link is invalid or has expired. Request a new code.",
+      });
+      return;
+    }
 
     // Check if user exists
     const user = await db.query.userTable.findFirst({
       where(fields, operators) {
-        return operators.eq(fields.email, email);
+        return emailEquals(fields.email, email);
       },
     });
 

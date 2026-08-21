@@ -21,7 +21,12 @@ enquiryRouter.post(
   imageUpload.single("idCard"),
   enrollPsychologyCounselling,
 );
-enquiryRouter.post("/career", enrollCareerCounselling);
+enquiryRouter.post(
+  "/career",
+  urlencoded({ extended: true }),
+  imageUpload.single("idCard"),
+  enrollCareerCounselling,
+);
 
 
 

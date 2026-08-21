@@ -1,10 +1,9 @@
 import { debugLog } from "../../utils/logger";
+import { emailEquals } from "../../utils/email";
 import { Request, RequestHandler, Response } from "express";
 import { db } from "../../db/connection";
 import { JWT_SECRET_AD } from "../../middleware";
 import {
-  ADMIN_AUTH_COOKIE_NAME,
-  AUTH_COOKIE_MAX_AGE_MS,
   INVALID_CREDENTIALS_MSG,
   INVALID_SESSION_MSG,
 } from "../../utils/constants";
@@ -86,7 +85,7 @@ export const signIn: RequestHandler = async (req: Request, res: Response) => {
     }
     const user = await db.query.adminTable.findFirst({
       where(fields, operators) {
-        return operators.eq(fields.email, signInUserValidation.data.email);
+        return emailEquals(fields.email, signInUserValidation.data.email);
       },
     });
     // Unknown account and incomplete stored credentials take the same path as
@@ -119,12 +118,13 @@ export const signIn: RequestHandler = async (req: Request, res: Response) => {
       createdAt: user.createdAt,
     };
     const token = await signJWT(userAuth, JWT_SECRET_AD!);
-    res.cookie(ADMIN_AUTH_COOKIE_NAME, token, {
-      httpOnly: true,
-      secure: true,
-      maxAge: AUTH_COOKIE_MAX_AGE_MS,
-      sameSite: "lax",
-    });
+    /**
+     * No cookie is set here on purpose. Authentication is Bearer-token only -
+     * requireAuthToken reads Authorization and never looks at cookies - so the
+     * httpOnly cookie this used to set was never read by anything. It implied
+     * an XSS protection that did not exist, since the token the client
+     * actually uses is the one returned below.
+     */
     res.json({
       data: {
         token,

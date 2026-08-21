@@ -74,6 +74,13 @@ export const careerCounsellingTable = pgTable("career_counselling", {
   mobile: char({ length: 10 }).notNull(),
   service: varchar({ length: 100 }),
   plan: institutionPlans(),
+  /**
+   * Evidence for the student discount, mirroring psychology_training. The
+   * discount used to be granted for any non-empty "studentId" string in the
+   * request body, which meant anyone could take 75% off. It now requires a
+   * document an admin can actually look at.
+   */
+  idCardURL: text(),
   selectedDate: varchar("selectedDate", { length: 20 }), // e.g., "2023-10-15"
   selectedTime: varchar("selectedTime", { length: 20 }), // e.g., "10:30 AM", "2:30 PM"
   ...timestamps(),
@@ -134,6 +141,13 @@ export const enquiryTransactionTable = pgTable("enq_transaction", {
   idempotencyId: varchar({ length: 500 }),
   amount: varchar({ length: 10 }).notNull(),
   status: transactionStatusEnum("status").default("pending"),
+  /**
+   * When the receipt email for this payment was sent, whichever side sent it.
+   * The browser fires the receipt call after checkout and the webhook fires
+   * one too; without a marker a customer gets two, and a customer who closed
+   * the tab used to get none.
+   */
+  receiptSentAt: timestamp("receipt_sent_at"),
   ...timestamps(),
 });
 

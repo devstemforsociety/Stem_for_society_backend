@@ -13,7 +13,7 @@ export const IndividualOrInstitutionnSchema = z.object({
   .string({required_error : "Mobile is required!"})
   .regex(/^[6789]\d{9}$/, "Mobile number is invalid"),
 
-  email : z.string().email("Invalid email"),
+  email : z.string().trim().toLowerCase().email("Invalid email"),
   type : z.enum(["individual", "institution"]),
   designation : z.string().max(100).nullish().or(z.literal("")),
   OrganizationName : z.string().max(200).nullish().or(z.literal("")),
@@ -39,7 +39,7 @@ export const institutionPlanSchema = z.object({
   contactMobile: z
     .string({ required_error: "Mobile is required!" })
     .regex(/^[6789]\d{9}$/, "Mobile number is invalid"),
-  contactEmail: z.string().email("Invalid email"),
+  contactEmail: z.string().trim().toLowerCase().email("Invalid email"),
   studentsCount: z.number().positive("Student count must be more than 0"),
   addressLine1: z.string().min(10).max(200),
   addressLine2: z.string().min(5).max(100).nullish().or(z.literal("")),
@@ -71,7 +71,7 @@ export const psychologyTrainingSchema = z.object({
   mobile: z
     .string({ required_error: "Mobile is required!" })
     .regex(/^[6789]\d{9}$/, "Mobile number is invalid"),
-  email: z.string().email("Invalid email"),
+  email: z.string().trim().toLowerCase().email("Invalid email"),
   city: z
     .string()
     .min(2, "Invalid city")
@@ -109,11 +109,20 @@ export const careerCounsellingSchema = z
       .max(100, "Last name is too long")
       .nullish()
       .or(z.literal("")),
-    studentId: z.string().optional(),
+    // The discount is granted on this file, not on a self-declared id string.
+    idCard: z
+      .instanceof(File, { message: "Image required!" })
+      .refine((file) => file.size <= 5 * 1024 * 1024, {
+        message: "ID card size must be less than 5MB",
+      })
+      .refine((file) => file.type.includes("image/"), {
+        message: "Not valid image format",
+      })
+      .nullish(),
     mobile: z
       .string({ required_error: "Mobile is required!" })
       .regex(/^[6789]\d{9}$/, "Mobile number is invalid"),
-    email: z.string().email("Invalid email"),
+    email: z.string().trim().toLowerCase().email("Invalid email"),
     service: z
       .enum([
         "Career choice",
@@ -158,7 +167,7 @@ export const caRegistrationSchema = z.object({
     .max(100, "Last name is too long")
     .nullish()
     .or(z.literal("")),
-  email: z.string().email("Invalid email"),
+  email: z.string().trim().toLowerCase().email("Invalid email"),
   mobile: z
     .string({ required_error: "Mobile is required!" })
     .regex(/^[6789]\d{9}$/, "Mobile number is invalid"),

@@ -20,11 +20,11 @@ partnerMiscRouter.post(
 );
 partnerMiscRouter.post(
   "/profile",
+  requireAuthToken("PARTNER"),
   upload.fields([
     {name :'logo', maxCount:1},
     {name: 'digitalSign',maxCount:1}
   ]),
-  requireAuthToken("PARTNER"),
   savePartnerProfile,
 );
 

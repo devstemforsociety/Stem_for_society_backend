@@ -10,7 +10,7 @@ export const registerUserSchema = z
     firstName: z
       .string({ required_error: "First name is required!" })
       .min(3, "First name must be at least 3 characters"),
-    email: z.string({ required_error: "Email is required!" }).email(),
+    email: z.string({ required_error: "Email is required!" }).trim().toLowerCase().email(),
     mobile: z
       .string({ required_error: "Mobile is required!" })
       .regex(/^[6789]\d{9}$/, "Mobile number is invalid"),
@@ -26,7 +26,7 @@ export const registerUserSchema = z
   });
 
 export const signInUserSchema = z.object({
-  email: z.string().email("Invalid email"),
+  email: z.string().trim().toLowerCase().email("Invalid email"),
   // Sign-in must not enforce the registration policy: accounts created before
   // the current rule would be permanently locked out, and echoing the policy
   // to unauthenticated callers leaks it. Credentials are checked below.
@@ -39,7 +39,10 @@ export const getUserInfoSchema = z
 
 
 export const resetPasswordSchema = z.object({
-  email: z.string().email("Invalid email address"),
+  email: z.string().trim().toLowerCase().email("Invalid email address"),
+  // Issued by /email/verifyOTP. Without it this endpoint reset any account
+  // from an email address alone.
+  resetToken: z.string({ required_error: "Reset token is required" }).min(1),
   newPassword: z
     .string()
     .max(100, "Password too long")

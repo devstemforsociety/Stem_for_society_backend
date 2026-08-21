@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { requireAuthToken } from "../../middleware";
 import {
+  getCareerCounselling,
   getCAApplications,
   getInstitutionRegistrations,
   getIndividualTrainings,
@@ -13,11 +14,11 @@ adminApplicationsRouter.get(
   requireAuthToken("ADMIN"),
   getIndividualTrainings,
 );
-// adminApplicationsRouter.get(
-//   "/career",
-//   requireAuthToken("ADMIN"),
-//   getCareerCounselling,
-// );
+adminApplicationsRouter.get(
+  "/career",
+  requireAuthToken("ADMIN"),
+  getCareerCounselling,
+);
 adminApplicationsRouter.get(
   "/ca",
   requireAuthToken("ADMIN"),

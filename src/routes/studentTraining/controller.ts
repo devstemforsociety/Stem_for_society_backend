@@ -6,7 +6,12 @@ import { db } from "../../db/connection";
 import { studentTrainingFeedbackSchema } from "./validation";
 import { createValidationError } from "../../utils/validation";
 import { INVALID_SESSION_MSG } from "../../utils/constants";
-import { trainingRatingTable } from "../../db/schema";
+import {
+  trainingEnrolmentTable,
+  trainingRatingTable,
+  transactionTable,
+} from "../../db/schema";
+import { nanoid } from "nanoid";
 
 export const getTrainings: RequestHandler = async (
   req: Request,
@@ -360,5 +365,117 @@ export const captureFeedback: RequestHandler = async (
     res.status(500).json({
       error: "Server error in saving feedback",
     });
+  }
+};
+
+/**
+ * Enrols the signed-in student in a zero-cost training.
+ *
+ * The frontend has always called this endpoint for free courses, but it did
+ * not exist - every attempt fell through to the catch-all 404 and surfaced as
+ * "Failed to enroll", so free courses could not be taken at all.
+ *
+ * Whether a course is free is decided here from the stored cost, never from
+ * the client: the paid path must stay reachable only through /payments.
+ */
+export const enrolFreeTraining: RequestHandler = async (
+  req: Request,
+  res: Response,
+) => {
+  try {
+    const studentAuth = req.auth?.["STUDENT"];
+    if (!studentAuth) {
+      res.status(401).json({ error: INVALID_SESSION_MSG });
+      return;
+    }
+
+    const trainingId = z.string().uuid().safeParse(req.params.trainingId);
+    if (!trainingId.success) {
+      res.status(400).json({ error: "Invalid training ID" });
+      return;
+    }
+
+    const [alreadyEnrolled, training] = await Promise.all([
+      db.query.trainingEnrolmentTable.findFirst({
+        where: (fields, operators) =>
+          operators.and(
+            operators.eq(fields.trainingId, trainingId.data),
+            operators.eq(fields.userId, studentAuth.id),
+          ),
+        with: { transactions: { columns: { status: true } } },
+      }),
+      db.query.trainingTable.findFirst({
+        where: (fields, operators) => operators.eq(fields.id, trainingId.data),
+        columns: { id: true, cost: true, startDate: true, endDate: true },
+      }),
+    ]);
+
+    if (!training) {
+      res.status(404).json({ error: "Could not find the training" });
+      return;
+    }
+
+    // A paid course must not be obtainable through the free path.
+    if (Number(training.cost ?? 0) !== 0) {
+      res.status(400).json({
+        error: "This training is not free. Complete the payment to enroll.",
+      });
+      return;
+    }
+
+    if (
+      new Date(training.startDate!) < new Date() ||
+      new Date(training.endDate!) < new Date()
+    ) {
+      res.status(400).json({
+        error: "Could not enroll because training has already started",
+      });
+      return;
+    }
+
+    if (
+      alreadyEnrolled?.transactions.some((txn) => txn.status === "success")
+    ) {
+      res.status(400).json({ error: "Already enrolled in the training" });
+      return;
+    }
+
+    await db.transaction(async (tx) => {
+      const [enrolment] = await tx
+        .insert(trainingEnrolmentTable)
+        .values({
+          trainingId: trainingId.data,
+          userId: studentAuth.id,
+        })
+        .onConflictDoUpdate({
+          target: [
+            trainingEnrolmentTable.userId,
+            trainingEnrolmentTable.trainingId,
+          ],
+          set: {
+            userId: trainingEnrolmentTable.userId,
+            trainingId: trainingEnrolmentTable.trainingId,
+          },
+        })
+        .returning();
+
+      /**
+       * The UI treats a student as enrolled only when a successful
+       * transaction exists, so a free enrolment still needs one. The FREE-
+       * prefix on the order id (there is no gateway order behind it) is what
+       * lets revenue queries exclude these rows.
+       */
+      await tx.insert(transactionTable).values({
+        amount: "0",
+        orderId: "FREE-" + nanoid(21),
+        status: "success",
+        enrolmentId: enrolment.id,
+      });
+    });
+
+    res.json({ data: { message: "Enrolled successfully" } });
+  } catch (error) {
+    debugLog("🚀 ~ enrolFreeTraining ~ error:", error);
+    res.status(500).json({ error: "Server error in enrolling" });
   }
 };

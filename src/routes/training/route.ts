@@ -15,11 +15,13 @@ const trainingRouter = Router();
 
 trainingRouter.get("/", requireAuthToken("PARTNER"), getTrainings);
 trainingRouter.get("/:trainingId", requireAuthToken("PARTNER"), getTraining);
+// Auth first: multer buffers the upload into memory, so running it before
+// the token check let anonymous callers spend server memory per request.
 trainingRouter.post(
   "/",
+  requireAuthToken("PARTNER"),
   urlencoded({ extended: true }),
   imageUpload.single("cover"),
-  requireAuthToken("PARTNER"),
   createTraining,
 );
 trainingRouter.post(
@@ -29,8 +31,8 @@ trainingRouter.post(
 );
 trainingRouter.patch(
   "/:trainingId",
-  imageUpload.single("cover"),
   requireAuthToken("PARTNER"),
+  imageUpload.single("cover"),
   updateTraining,
 );
 trainingRouter.delete(

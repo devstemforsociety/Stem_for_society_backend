@@ -128,6 +128,13 @@ export const transactionTable = pgTable("transaction", {
   amount: varchar({ length: 10 }).notNull(),
   status: transactionStatusEnum("status").default("pending"),
   enrolmentId: uuid("enrolment_id").references(() => trainingEnrolmentTable.id),
+  /**
+   * When the receipt email for this payment was sent, whichever side sent it.
+   * The browser fires the receipt call after checkout and the webhook fires
+   * one too; without a marker a customer gets two, and a customer who closed
+   * the tab used to get none.
+   */
+  receiptSentAt: timestamp("receipt_sent_at"),
   ...timestamps(),
 });
 

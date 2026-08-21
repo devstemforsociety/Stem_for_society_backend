@@ -354,7 +354,7 @@ export const enrollPsychologyCounselling: RequestHandler = async (
           original_amount: String(basePricing),
           final_amount: String(finalPricing),
           student_discount: hasStudentDiscount ? "50%" : "0%",
-          student_id: hasStudentDiscount ? req.body.studentId : "",
+          student_id_card: idCardURL ?? "",
         },
         receipt: referenceId,
       });
@@ -444,7 +444,15 @@ export const enrollCareerCounselling: RequestHandler = async (
   res: Response,
 ) => {
   try {
-    const careerCounsellingParsed = careerCounsellingSchema.safeParse(req.body);
+    const careerCounsellingParsed = careerCounsellingSchema.safeParse({
+      ...req.body,
+      idCard:
+        req.file && req.file.buffer
+          ? new File([new Uint8Array(req.file.buffer)], req.file.filename, {
+              type: req.file.mimetype,
+            })
+          : null,
+    });
     if (!careerCounsellingParsed.success) {
       res
         .status(400)
@@ -454,7 +462,28 @@ export const enrollCareerCounselling: RequestHandler = async (
 
     await db.transaction(async (tx) => {
       const { data } = careerCounsellingParsed;
-      
+
+      let idCardURL = null;
+      if (data.idCard) {
+        const { data: fileURL, error } = await supabase.storage
+          .from("s4s-media")
+          .upload(`public/photos/${slugify(data.mobile)}-career-id.jpg`, data.idCard, {
+            upsert: true,
+          });
+
+        if (error) {
+          res.status(500).json({
+            success: false,
+            error: "Server error in uploading file!",
+          });
+          return;
+        }
+        idCardURL =
+          SUPABASE_PROJECT_URL +
+          "/storage/v1/object/public/" +
+          fileURL.fullPath;
+      }
+
       // Calculate base pricing
       const basePricing = data.service
         ? 2000
@@ -462,8 +491,12 @@ export const enrollCareerCounselling: RequestHandler = async (
           ? 30000
           : 50000;
 
-      // Calculate final pricing with student discount
-      const hasStudentDiscount = req.body.studentId && req.body.studentId.trim() !== '';
+      /**
+       * The discount now rests on an uploaded ID card an admin can review,
+       * not on a "studentId" string the caller invents. Sending
+       * {"studentId":"x"} used to take 75% off this order.
+       */
+      const hasStudentDiscount = idCardURL !== null;
       const finalPricing = hasStudentDiscount ? Math.round(basePricing * 0.25) : basePricing;
       
       const [careerCounselling] = await tx
@@ -475,6 +508,7 @@ export const enrollCareerCounselling: RequestHandler = async (
           email: data.email,
           service: data.service,
           plan: data.plan,
+          idCardURL: idCardURL,
           selectedDate: data.selectedDate,
           selectedTime: data.selectedTime || null,
         })
@@ -503,7 +537,7 @@ export const enrollCareerCounselling: RequestHandler = async (
           original_amount: String(basePricing),
           final_amount: String(finalPricing),
           student_discount: hasStudentDiscount ? "75%" : "0%",
-          student_id: hasStudentDiscount ? req.body.studentId : "",
+          student_id_card: idCardURL ?? "",
           service_type: data.service ? "service" : "plan",
           selected_item: data.service || data.plan || "",
         },

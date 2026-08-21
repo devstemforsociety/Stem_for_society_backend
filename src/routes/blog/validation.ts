@@ -16,7 +16,7 @@ export const createBlogSchema = z.object({
     .string({ required_error: "Name is required!" })
     .min(5, "Name is too short")
     .max(100, "Name is too long"),
-  authorEmail: z.string().email("Invalid email"),
+  authorEmail: z.string().trim().toLowerCase().email("Invalid email"),
   authorMobile: z
     .string({ required_error: "Mobile is required!" })
     .regex(/^[6789]\d{9}$/, "Mobile number is invalid"),
