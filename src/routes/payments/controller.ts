@@ -812,6 +812,86 @@ export const verifyClientPayment: RequestHandler = async (
   }
 };
 
+/**
+ * Browser-side confirmation for enquiry payments (career counselling,
+ * psychology, institution plans, individual/institution enquiries).
+ *
+ * The training equivalent, verifyClientPayment, cannot serve these: it looks
+ * the order up in transactionTable and proves ownership through the student's
+ * enrolment. Enquiry payments live in enquiryTransactionTable and are made by
+ * visitors who are not signed in, so there is no session to check.
+ *
+ * The Razorpay signature is what authorises this call. It is an HMAC over
+ * "order_id|payment_id" keyed with our secret, so only Razorpay can produce a
+ * valid one, and it is only valid for that exact order and payment. That makes
+ * the endpoint safe to expose unauthenticated - which it must be.
+ */
+export const verifyClientEnquiryPayment: RequestHandler = async (
+  req: Request,
+  res: Response,
+) => {
+  try {
+    const parsed = z
+      .object({
+        orderId: z.string().min(1),
+        paymentId: z.string().min(1),
+        signature: z.string().min(1),
+      })
+      .safeParse(req.body);
+
+    if (!parsed.success) {
+      res.status(400).json({
+        error: "Missing required payment verification data",
+      });
+      return;
+    }
+
+    const { orderId, paymentId, signature } = parsed.data;
+
+    const isValidSignature = validatePaymentVerification(
+      { order_id: orderId, payment_id: paymentId },
+      signature,
+      RAZORPAY_KEYSEC!,
+    );
+
+    if (!isValidSignature) {
+      res.status(400).json({ error: "Invalid payment signature" });
+      return;
+    }
+
+    const existing = await db.query.enquiryTransactionTable.findFirst({
+      where: eq(enquiryTransactionTable.orderId, orderId),
+    });
+
+    if (!existing) {
+      res.status(404).json({ error: "Payment record not found" });
+      return;
+    }
+
+    // The webhook may have landed first; do not rewrite a settled payment.
+    if (existing.status === "success") {
+      res.json({
+        message: "Payment already verified",
+        data: { orderId, paymentId: existing.paymentId, status: "success" },
+      });
+      return;
+    }
+
+    await db
+      .update(enquiryTransactionTable)
+      .set({ status: "success", paymentId, signature })
+      .where(eq(enquiryTransactionTable.orderId, orderId));
+
+    res.json({
+      message: "Payment verified successfully",
+      data: { orderId, paymentId, status: "success" },
+    });
+  } catch (error) {
+    debugLog("🚀 ~ verifyClientEnquiryPayment ~ error:", error);
+    res.status(500).json({ error: "Server error in payment verification" });
+  }
+};
+
 // Debug endpoint to check environment variables and webhook setup
 // export const debugWebhook: RequestHandler = async (
 //   req: Request,
