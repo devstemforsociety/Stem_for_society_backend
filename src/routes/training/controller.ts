@@ -736,22 +736,40 @@ export const generateCertificates: RequestHandler = async (
       });
       return;
     }
-    const enrolmentIdsUnsafe = req.body;
-    const enrolmentIdsParsed = z
+    /**
+     * Accepts the original bare array of enrolment ids, or an object that also
+     * says what to do about students who have not left feedback yet:
+     *   "abort"   - refuse and report them (default, so old callers are safe)
+     *   "include" - certify them anyway
+     *   "skip"    - certify everyone else
+     */
+    const idList = z
       .array(z.string().uuid("Invalid IDs"))
-      .min(1, "Atleast one enrolment need to be selected")
-      .safeParse(enrolmentIdsUnsafe);
-    if (!enrolmentIdsParsed.success) {
-      res
-        .status(400)
-        .json({ errors: createValidationError(enrolmentIdsParsed) });
+      .min(1, "Atleast one enrolment need to be selected");
+    const bodyParsed = z
+      .union([
+        idList.transform((enrolmentIds) => ({
+          enrolmentIds,
+          missingFeedback: "abort" as const,
+        })),
+        z.object({
+          enrolmentIds: idList,
+          missingFeedback: z.enum(["abort", "include", "skip"]).default("abort"),
+        }),
+      ])
+      .safeParse(req.body);
+    if (!bodyParsed.success) {
+      res.status(400).json({ errors: createValidationError(bodyParsed) });
       return;
     }
+    const enrolmentIdsParsed = { data: bodyParsed.data.enrolmentIds };
+    const missingFeedbackMode = bodyParsed.data.missingFeedback;
     
     const trainingEnrolments = await db.query.trainingTable.findFirst({
       columns: {
         id: true,
         title: true,
+        cost: true,       // decides whether payment is required
         startDate: true,  // Add these fields
         endDate: true,    // Add these fields
       },
@@ -760,6 +778,7 @@ export const generateCertificates: RequestHandler = async (
           columns: {
             id: true,
             paidOn: true,
+            completedOn: true,
             certificate: true,
             userId: true,
           },
@@ -809,27 +828,74 @@ export const generateCertificates: RequestHandler = async (
       return;
     }
     
-    if (
-      !trainingEnrolments.enrolments.every((enr) => {
-        const ratingByUser = trainingEnrolments.ratings.find(
-          (rat) => rat.userId === enr.userId,
-        );
-        return ratingByUser?.feedback && ratingByUser.rating;
-      })
-    ) {
-      res.status(403).json({
-        error:
-          "Not all selected enrolments have given rating and feedbacks! Please reselect appropriate candidates!",
+    const displayName = (enr: (typeof trainingEnrolments.enrolments)[number]) =>
+      [enr.user?.firstName, enr.user?.lastName].filter(Boolean).join(" ").trim() ||
+      enr.user?.email ||
+      "an enrolled student";
+
+    const hasFeedback = (enr: (typeof trainingEnrolments.enrolments)[number]) => {
+      const ratingByUser = trainingEnrolments.ratings.find(
+        (rat) => rat.userId === enr.userId,
+      );
+      return Boolean(ratingByUser?.feedback && ratingByUser.rating);
+    };
+
+    const summarise = (list: typeof trainingEnrolments.enrolments) => ({
+      count: list.length,
+      students: list.map((enr) => ({ enrolmentId: enr.id, name: displayName(enr) })),
+    });
+
+    /**
+     * A paid course must actually be paid for before it is certified. A free
+     * course has nothing to settle, and free enrolments never carry a paidOn
+     * date, so requiring one there would block every legitimate free
+     * certificate.
+     */
+    const isPaidCourse = Number(trainingEnrolments.cost ?? 0) > 0;
+    const selected = trainingEnrolments.enrolments.filter((enr) => !enr.certificate);
+
+    // Unpaid students are never certified, whatever the partner decides about
+    // feedback - the money has not arrived.
+    const unpaid = isPaidCourse ? selected.filter((enr) => !enr.paidOn) : [];
+    const payable = selected.filter((enr) => !unpaid.includes(enr));
+    const awaitingFeedback = payable.filter((enr) => !hasFeedback(enr));
+
+    if (awaitingFeedback.length > 0 && missingFeedbackMode === "abort") {
+      /**
+       * 422, not 403: the partner is permitted, the selection just is not
+       * certifiable as-is. The payload is machine-readable so the UI can offer
+       * to include or skip these students instead of dead-ending.
+       */
+      res.status(422).json({
+        code: "FEEDBACK_PENDING",
+        error: `${awaitingFeedback.length} selected student(s) have not submitted a rating and feedback yet.`,
+        pendingFeedback: summarise(awaitingFeedback),
+        unpaidSkipped: summarise(unpaid),
       });
       return;
     }
 
-    // Filter enrolments that don't have certificates yet
-    const enrolmentsToProcess = trainingEnrolments.enrolments.filter(
-      (enr) => !enr.certificate
-    );
-    
-    if (enrolmentsToProcess.length === 0) {
+    const certifiable =
+      missingFeedbackMode === "include"
+        ? payable
+        : payable.filter((enr) => hasFeedback(enr));
+
+    if (certifiable.length === 0) {
+      res.status(422).json({
+        code: "NOTHING_TO_CERTIFY",
+        error: unpaid.length
+          ? `No certificates could be issued: ${unpaid.length} selected student(s) have not completed payment for this paid course.`
+          : "No certificates could be issued for the selected students.",
+        unpaidSkipped: summarise(unpaid),
+      });
+      return;
+    }
+
+    // Already filtered above: no existing certificate, paid (when the course
+    // costs money) and feedback handled per the partner's choice.
+    const enrolmentsToProcess = certifiable;
+
+    if (selected.length === 0) {
       res.status(400).json({
         error: "All selected students already have certificates generated!",
       });
@@ -852,14 +918,19 @@ export const generateCertificates: RequestHandler = async (
     const results = await Promise.allSettled(
       enrolmentsToProcess.map(async (enr) => {
         const certificateId = nanoid(30);
+        // May be absent: "include" mode certifies students who never rated.
         const ratingByUser = trainingEnrolments.ratings.find(
           (rat) => rat.userId === enr.userId,
-        )!;
-        
+        );
+
         const certificateData = {
           name: enr.user?.firstName + " " + (enr.user?.lastName ?? ""),
           courseName: trainingEnrolments.title,
-          completedOn: formatDateToString(ratingByUser.completedOn), // Convert Date to string
+          completedOn: formatDateToString(
+            ratingByUser?.completedOn ??
+              enr.completedOn ??
+              trainingEnrolments.endDate,
+          ), // Convert Date to string
           certificateId,
           enrolmentId: enr.id,
           instructor:

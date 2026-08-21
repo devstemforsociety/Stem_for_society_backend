@@ -1,6 +1,6 @@
 import { debugLog } from "./logger";
 import { eq } from "drizzle-orm";
-import { readFileSync } from "fs";
+import { existsSync, readFileSync } from "fs";
 import path from "path";
 import { Color, PDFDocument, PDFFont, rgb, StandardFonts } from "pdf-lib";
 import { db } from "../db/connection";
@@ -29,10 +29,38 @@ export interface PDFGenerationType {
   digitalSignUrl?: string | null;
 }
 
+/** #RRGGBB -> pdf-lib rgb(), so the palette reads the same as the site's CSS. */
+function hexColor(hex: string) {
+  const int = parseInt(hex.replace("#", ""), 16);
+  return rgb(((int >> 16) & 255) / 255, ((int >> 8) & 255) / 255, (int & 255) / 255);
+}
+
+/**
+ * Certificate palette.
+ *
+ * Every element used to be drawn in flat black over the printed background,
+ * so the finished certificate read like a photocopy. These take the accent
+ * blue the site already uses (#0389FF) and pair it with a deep navy for the
+ * recipient's name, which is the piece people actually look at.
+ */
+const CERT_NAME_COLOR = hexColor("#0B3B76");
+const CERT_ACCENT_COLOR = hexColor("#0389FF");
+const CERT_BODY_COLOR = hexColor("#334155");
+const CERT_MUTED_COLOR = hexColor("#94A3B8");
+
 export async function generateCertificate(data: PDFGenerationType) {
   try {
-    // Load the sample PDF
-    const pdfPath = path.join(__dirname, "../assets/sample.pdf");
+    /**
+     * The original sample.pdf background is a pure greyscale scan, so every
+     * certificate printed black-on-white however the text was coloured.
+     * sample-color.pdf is the same artwork mapped onto the brand ramp
+     * (paper -> accent blue -> deep navy) by scripts/build-certificate-template.js.
+     * Falling back keeps generation working if that asset is ever missing.
+     */
+    const colourPdfPath = path.join(__dirname, "../assets/sample-color.pdf");
+    const pdfPath = existsSync(colourPdfPath)
+      ? colourPdfPath
+      : path.join(__dirname, "../assets/sample.pdf");
     const existingPdfBytes = readFileSync(pdfPath);
 
     // Load PDF document and embed font
@@ -60,11 +88,11 @@ export async function generateCertificate(data: PDFGenerationType) {
     // Add name to the PDF
     let textWidth = nameFont.widthOfTextAtSize(data.name, 40);
     firstPage.drawText(data.name, {
-      x: (600 - textWidth) / 2,
+      x: (firstPage.getWidth() - textWidth) / 2,
       y: 350,
       size: 40,
       font: nameFont,
-      color: rgb(0, 0, 0),
+      color: CERT_NAME_COLOR,
     });
 
     // Calculate course duration
@@ -93,6 +121,9 @@ export async function generateCertificate(data: PDFGenerationType) {
     const fontSize = 12;
     const y = 300;
     const xStart = 75;
+    // Keep the right margin equal to the left one instead of the old fixed
+    // 500pt, which sat 20pt short of the page edge and ignored page width.
+    const maxX = firstPage.getWidth() - xStart;
 
     function drawStyledText(
       x: number,
@@ -101,27 +132,31 @@ export async function generateCertificate(data: PDFGenerationType) {
     ) {
       let currentX = x;
       let currentY = y;
-      let mid = 2;
       const lineHeight = 1.5 * fontSize;
       for (const style of styles) {
+        const size = style.size || fontSize;
+        const width = style.font.widthOfTextAtSize(style.text, size);
+
+        /**
+         * Measure before drawing. The previous version drew the word first and
+         * only then checked whether the cursor had passed the limit, so the
+         * word that crossed the margin was already painted - it ran off the
+         * right edge of the page and only the *following* word moved down.
+         * The currentX > x guard keeps a single over-long word from looping.
+         */
+        if (currentX + width > maxX && currentX > x) {
+          currentX = x;
+          currentY -= lineHeight;
+        }
+
         firstPage.drawText(style.text, {
           x: currentX,
           y: currentY,
           font: style.font,
-          size: style.size || fontSize,
-          color: style.color || rgb(0, 0, 0),
+          size,
+          color: style.color || CERT_BODY_COLOR,
         });
-
-        currentX += style.font.widthOfTextAtSize(
-          style.text,
-          style.size || fontSize,
-        );
-        if (currentX >= 500) {
-          currentX = x;
-          mid++;
-          currentY -= lineHeight;
-          console.log("yeet");
-        }
+        currentX += width;
       }
     }
 
@@ -165,6 +200,7 @@ export async function generateCertificate(data: PDFGenerationType) {
       innerArray.map((key) => ({
         text: key + " ",
         font: boldFont,
+        color: CERT_ACCENT_COLOR,
       })),
     );
     
@@ -271,7 +307,7 @@ export async function generateCertificate(data: PDFGenerationType) {
       y: 170,
       size: 6,
       font,
-      color: rgb(0, 0, 0),
+      color: CERT_MUTED_COLOR,
     });
 
     const pdfBuffer = await pdfDoc.save();
