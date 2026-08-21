@@ -179,10 +179,11 @@ export const resetPassword: RequestHandler = async (req: Request, res: Response)
     // The token proves this caller just passed the emailed OTP for THIS
     // address. Comparing the two matters: a valid token for one account must
     // not be usable to reset another.
-    const tokenEmail = await verifyPasswordResetToken(
+    const tokenClaims = await verifyPasswordResetToken(
       resetToken,
       JWT_SECRET_STU!,
     );
+    const tokenEmail = tokenClaims?.email;
     if (!tokenEmail || tokenEmail.toLowerCase() !== email.toLowerCase()) {
       res.status(401).json({
         error: "Password reset link is invalid or has expired. Request a new code.",
@@ -199,6 +200,20 @@ export const resetPassword: RequestHandler = async (req: Request, res: Response)
 
     if (!user) {
       res.status(404).json({ error: "User not found" });
+      return;
+    }
+
+    /**
+     * One reset per code. The token carries a fingerprint of the hash that was
+     * stored when it was issued; once a reset rewrites that hash the
+     * fingerprint no longer matches, so a replayed token is refused even
+     * though its signature and expiry are still valid.
+     */
+    if (tokenClaims!.credential !== credentialFingerprint(user.hash)) {
+      res.status(401).json({
+        error:
+          "This password reset link has already been used. Request a new code.",
+      });
       return;
     }
 

@@ -615,10 +615,21 @@ export const verifyOTP: RequestHandler = async (req: Request, res: Response) => 
         // Delete the OTP record after successful verification
         await db.delete(userOtp).where(eq(userOtp.email, email));
 
+        // Bind the token to the credentials it was issued against, so it stops
+        // working the moment those credentials change (see credentialFingerprint).
+        const [resetUser] = await db
+            .select({ hash: userTable.hash })
+            .from(userTable)
+            .where(emailEquals(userTable.email, email));
+
         // Proof that this caller controls the mailbox, which /auth/reset-password
         // requires before it will change a password. The OTP itself is spent
         // above, so the token is the only thing carrying that proof forward.
-        const resetToken = await signPasswordResetToken(email, JWT_SECRET_STU!);
+        const resetToken = await signPasswordResetToken(
+            email,
+            JWT_SECRET_STU!,
+            resetUser ? credentialFingerprint(resetUser.hash) : "",
+        );
 
         res.json({ message: "OTP verified successfully", resetToken });
         

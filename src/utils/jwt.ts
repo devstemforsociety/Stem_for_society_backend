@@ -1,6 +1,7 @@
 import { jwtVerify, SignJWT } from "jose";
 import { AUTH_TOKEN_EXPIRES_IN } from "./constants";
 import { AuthCookieType } from "./validation";
+import { createHash } from "crypto";
 
 export async function signJWT(
   payload: AuthCookieType,
@@ -54,12 +55,27 @@ const RESET_TOKEN_PURPOSE = "password-reset";
 /** Long enough to type a new password, short enough to be worthless if leaked. */
 export const RESET_TOKEN_EXPIRES_IN = "10m";
 
+/**
+ * Fingerprint of the credentials a reset token was issued against.
+ *
+ * The token proves the caller passed the emailed OTP, and the OTP itself is
+ * spent on first use - but the token was replayable for its whole lifetime, so
+ * a single intercepted token could change the password again and again. Tying
+ * it to the stored hash makes it self-invalidating: the first successful reset
+ * rewrites the hash, and every copy of that token stops verifying. Hashed, so
+ * the token never carries credential material itself.
+ */
+export function credentialFingerprint(hash: string): string {
+  return createHash("sha256").update(hash).digest("hex").slice(0, 32);
+}
+
 export async function signPasswordResetToken(
   email: string,
   secret: string,
+  credential: string,
 ): Promise<string> {
   const encoder = new TextEncoder();
-  return new SignJWT({ email, purpose: RESET_TOKEN_PURPOSE })
+  return new SignJWT({ email, credential, purpose: RESET_TOKEN_PURPOSE })
     .setProtectedHeader({ alg: "HS256" })
     .setExpirationTime(RESET_TOKEN_EXPIRES_IN)
     .setIssuedAt()
@@ -75,12 +91,16 @@ export async function signPasswordResetToken(
 export async function verifyPasswordResetToken(
   token: string,
   secret: string,
-): Promise<string | null> {
+): Promise<{ email: string; credential: string } | null> {
   const encoder = new TextEncoder();
   try {
     const { payload } = await jwtVerify(token, encoder.encode(secret));
     if (payload.purpose !== RESET_TOKEN_PURPOSE) return null;
-    return typeof payload.email === "string" ? payload.email : null;
+    if (typeof payload.email !== "string") return null;
+    // Tokens minted before the credential claim existed are refused rather
+    // than trusted; that user simply requests a fresh code.
+    if (typeof payload.credential !== "string") return null;
+    return { email: payload.email, credential: payload.credential };
   } catch {
     return null;
   }
