@@ -2,10 +2,8 @@ import { imageUpload } from "../../utils/upload";
 import { Router, urlencoded } from "express";
 import {
   createTraining,
-  deleteAsset,
   deleteTraining,
   generateCertificates,
-  generateUploadSignature,
   getTraining,
   getTrainings,
   updateTraining,
@@ -29,12 +27,6 @@ trainingRouter.post(
   requireAuthToken("PARTNER"),
   generateCertificates,
 );
-trainingRouter.post(
-  "/sign-asset",
-  requireAuthToken("PARTNER"),
-  generateUploadSignature,
-);
-trainingRouter.post("/delete-asset", requireAuthToken("PARTNER"), deleteAsset);
 trainingRouter.patch(
   "/:trainingId",
   imageUpload.single("cover"),

@@ -5,10 +5,29 @@ import path from "path";
 import { Color, PDFDocument, PDFFont, rgb, StandardFonts } from "pdf-lib";
 import { db } from "../db/connection";
 import { trainingEnrolmentTable } from "../db/schema";
-import { PDFGenerationType } from "../redis";
 import { supabase, SUPABASE_PROJECT_URL } from "../supabase";
 import { slugify } from "./validation";
 import fontkit from "@pdf-lib/fontkit";
+
+/**
+ * Everything needed to render one certificate.
+ *
+ * Previously declared in redis.ts alongside the BullMQ queue. Certificates are
+ * generated inline by the /generate endpoint - the queue was never used - so
+ * the type now lives with the function that consumes it.
+ */
+export interface PDFGenerationType {
+  name: string;
+  courseName: string;
+  completedOn: string;
+  certificateId: string;
+  enrolmentId: string;
+  instructor: string;
+  startDate: string;
+  endDate: string;
+  logo?: string | null;
+  digitalSignUrl?: string | null;
+}
 
 export async function generateCertificate(data: PDFGenerationType) {
   try {

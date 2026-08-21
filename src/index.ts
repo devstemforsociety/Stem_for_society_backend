@@ -10,8 +10,6 @@ import {
   paymentLimiter,
   securityHeaders,
 } from "./security";
-import { eq } from "drizzle-orm";
-import { trainingEnrolmentTable } from "./db/schema";
 import express, { Application, Request, Response } from "express";
 import { db } from "./db/connection";
 import adminAuthRouter from "./routes/adminAuth/route";
@@ -27,9 +25,6 @@ import paymentRouter from "./routes/payments/route";
 import studentTrainingRouter from "./routes/studentTraining/route";
 import testRouter from "./routes/test/route";
 import trainingRouter from "./routes/training/route";
-import { Worker } from "bullmq";
-import { CERT_QUEUE_NAME, PDFGenerationType} from "./redis";
-import { generateCertificate } from "./utils/pdf";
 import homeRouter from "./routes/home/route";
 import emailRouter from "./routes/email/route"
 
@@ -153,57 +148,6 @@ app.use((err: any, req: Request, res: Response, next: any) => {
   });
 });
 
-
-// const worker = new Worker<PDFGenerationType>(
-//   CERT_QUEUE_NAME!,
-//   async (job) => {
-//     console.log(
-//       `🚀 Processing certificate for enrolment ID: ${job.data.enrolmentId}`,
-//     );
-//     try {
-//       const response = await generateCertificate(job.data);
-//       if (response) {
-//         console.log(`✅ PDF generation succeeded: ${job.data.enrolmentId}`);
-//         return { success: true, enrolmentId: job.data.enrolmentId };
-//       } else {
-//         console.error(`❌ PDF generation failed: ${job.data.enrolmentId}`);
-//         // Update database to show error state
-//         await db
-//           .update(trainingEnrolmentTable)
-//           .set({ certificate: null })
-//           .where(eq(trainingEnrolmentTable.id, job.data.enrolmentId));
-//         throw new Error(`PDF generation failed for ${job.data.enrolmentId}`);
-//       }
-//     } catch (error) {
-//       console.error(`💥 Error in PDF worker for ${job.data.enrolmentId}:`, error);
-//       // Reset certificate status on error
-//       await db
-//         .update(trainingEnrolmentTable)
-//         .set({ certificate: null })
-//         .where(eq(trainingEnrolmentTable.id, job.data.enrolmentId));
-//       throw error;
-//     }
-//   },
-//   {
-//     connection: redis,
-//     concurrency: 2,
-//     lockDuration: 5 * 60 * 1000, // 5 minutes
-//   }
-// );
-
-
-
-// worker.on("error", (err) => {
-//   console.log("Connection error --- :", err.message);
-// });
-
-// worker.on("completed", (job) => {
-//   console.log(`Job ${job.id} completed successfully!`);
-// });
-
-// worker.on("failed", (job, err) => {
-//   console.error(`Job ${job?.id} failed:`, err);
-// });
 
 app.listen(port, () => {
   console.log(`Server is firing at http://localhost:${port}`);

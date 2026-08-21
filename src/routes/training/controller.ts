@@ -8,12 +8,6 @@ import { INVALID_SESSION_MSG } from "../../utils/constants";
 import { z } from "zod";
 import { supabase, SUPABASE_PROJECT_URL } from "../../supabase";
 import { nanoid } from "nanoid";
-import cloudinary, {
-  isCloudinaryConfigured,
-  CLOUDINARY_API_KEY,
-  CLOUDINARY_API_SECRET,
-  CLOUDINARY_CLOUD_NAME,
-} from "../../cloudinary";
 import { trainingEnrolmentTable } from "../../db/schema";
 import { eq } from "drizzle-orm";
 import { generateCertificate } from "../../utils/pdf";
@@ -928,80 +922,4 @@ export const generateCertificates: RequestHandler = async (
   }
 };
 
-export const generateUploadSignature: RequestHandler = async (
-  req: Request,
-  res: Response,
-) => {
-  try {
-    const partnerAuth = req.auth["PARTNER"];
-    if (!partnerAuth) {
-      res.status(401).json({
-        error: INVALID_SESSION_MSG,
-      });
-      return;
-    }
-    if (!isCloudinaryConfigured) {
-      res.status(503).json({
-        error:
-          "Media uploads are temporarily unavailable. Please try again later.",
-      });
-      return;
-    }
 
-    const timestamp = Math.round(new Date().getTime() / 1000);
-    const signature = cloudinary.utils.api_sign_request(
-      {
-        timestamp: timestamp,
-        folder: "signed_upload_demo",
-        return_delete_token: true,
-      },
-      CLOUDINARY_API_SECRET!,
-    );
-    res.json({
-      data: {
-        signature,
-        timestamp,
-        cloudName: CLOUDINARY_CLOUD_NAME,
-        apiKey: CLOUDINARY_API_KEY,
-      },
-    });
-  } catch (error) {
-    debugLog("🚀 ~ generateUploadSignature ~ error:", error);
-    res.status(500).json({
-      error: "Server error in generating upload signature",
-    });
-  }
-};
-
-export const deleteAsset: RequestHandler = async (
-  req: Request,
-  res: Response,
-) => {
-  try {
-    const partnerAuth = req.auth["PARTNER"];
-    if (!partnerAuth) {
-      res.status(401).json({
-        error: INVALID_SESSION_MSG,
-      });
-      return;
-    }
-    if (!isCloudinaryConfigured) {
-      res.status(503).json({
-        error:
-          "Media management is temporarily unavailable. Please try again later.",
-      });
-      return;
-    }
-
-    const publicId = req.body.public_id;
-    await cloudinary.uploader.destroy(publicId, {}, (res) => {
-      console.log(res);
-    });
-    res.json({ message: "Deleted successully!" });
-  } catch (error) {
-    debugLog("🚀 ~ deleteAsset ~ error:", error);
-    res.status(500).json({
-      error: "Server error in deleting asset",
-    });
-  }
-};
