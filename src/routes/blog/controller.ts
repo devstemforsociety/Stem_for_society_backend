@@ -50,7 +50,7 @@ export const getBlog: RequestHandler = async (req: Request, res: Response) => {
     const { blogSlug: blogSlugUnsafe } = req.params;
     const blogSlug = z
       .string()
-      .regex(/^[a-zA-Z]+[a-zA-Z0-9-_]*$/, "Invalid blog link")
+      .regex(/^[a-zA-Z0-9][a-zA-Z0-9-_]*$/, "Invalid blog link")
       .safeParse(blogSlugUnsafe);
     if (!blogSlug.success) {
       res.status(400).json({
@@ -199,7 +199,7 @@ export const approveBlog: RequestHandler = async (
     const { blogSlug: blogSlugUnsafe } = req.params;
     const blogSlug = z
       .string()
-      .regex(/^[a-zA-Z]+[a-zA-Z0-9-_]*$/, "Invalid blog link")
+      .regex(/^[a-zA-Z0-9][a-zA-Z0-9-_]*$/, "Invalid blog link")
       .safeParse(blogSlugUnsafe);
     if (!blogSlug.success) {
       res.status(400).json({
