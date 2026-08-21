@@ -1,7 +1,7 @@
 import cookieParser from "cookie-parser";
 import "dotenv/config";
 import {
-  authLimiter,
+  authLimiters,
   corsMiddleware,
   globalLimiter,
   otpSendLimiter,
@@ -94,9 +94,13 @@ app.options("*", corsMiddleware());
  * endpoints that create payment orders. Registered before the routers so they
  * run first.
  */
-app.use(["/auth/sign-in", "/auth/register", "/auth/reset-password"], authLimiter);
-app.use("/admin/auth/sign-in", authLimiter);
-app.use("/partner/auth/sign-in", authLimiter);
+// One call per mount: each endpoint gets its own counter rather than all five
+// sharing a single bucket (see authLimiters).
+app.use("/auth/sign-in", authLimiters());
+app.use("/auth/register", authLimiters());
+app.use("/auth/reset-password", authLimiters());
+app.use("/admin/auth/sign-in", authLimiters());
+app.use("/partner/auth/sign-in", authLimiters());
 app.use(["/email/sendOTP", "/email/resetOTP"], otpSendLimiter);
 app.use("/email/verifyOTP", otpVerifyLimiter);
 app.use("/payments/create", paymentLimiter);

@@ -16,7 +16,11 @@ import {
 } from "../../utils/password";
 import { authRoleEnum, createValidationError } from "../../utils/validation";
 import { DatabaseError } from "pg";
-import { signJWT, verifyPasswordResetToken } from "../../utils/jwt";
+import {
+  credentialFingerprint,
+  signJWT,
+  verifyPasswordResetToken,
+} from "../../utils/jwt";
 import { JWT_SECRET_STU } from "../../middleware";
 import {
   INVALID_CREDENTIALS_MSG,
@@ -50,21 +54,30 @@ export const registerUser: RequestHandler = async (
   } catch (error) {
     debugLog("🚀 ~ constregisterUser:RequestHandler= ~ error:", error);
     if (error instanceof DatabaseError) {
+      /**
+       * 409, not 500. These are expected outcomes of a unique constraint, not
+       * server faults - and the frontend deliberately suppresses the body of
+       * any 5xx (that is where stack traces leak), so returning 500 hid
+       * "Email already registered" behind a generic "something went wrong"
+       * and left the visitor with no idea what to change.
+       */
       if (error.code === "23505" && error.constraint === "user_mobile_unique") {
-        res.status(500).json({
+        res.status(409).json({
           error: "Mobile number already exists",
         });
         return;
       }
       if (error.code === "23505" && error.constraint === "user_email_unique") {
-        res.status(500).json({
+        res.status(409).json({
           error: "Email already registered",
         });
         return;
       }
     }
-    res.json({
-      error: "Server error in signing In",
+    // Anything unrecognised really is a server fault; it used to answer 200
+    // with an error body, which no client could treat as a failure.
+    res.status(500).json({
+      error: "Server error in registering",
     });
   }
 };

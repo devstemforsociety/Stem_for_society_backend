@@ -1,6 +1,6 @@
 import cors, { CorsOptions } from "cors";
-import { RequestHandler } from "express";
-import rateLimit from "express-rate-limit";
+import { Request, RequestHandler } from "express";
+import rateLimit, { ipKeyGenerator } from "express-rate-limit";
 import helmet from "helmet";
 
 /**
@@ -125,12 +125,57 @@ export const globalLimiter = rateLimit({
   skip: (req) => req.path === "/payments/verify",
 });
 
-/** Credential endpoints: the ones worth guessing against. */
-export const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  limit: 10,
-  ...shared,
-});
+const AUTH_WINDOW_MS = 15 * 60 * 1000;
+
+/**
+ * Identifies who is knocking on a credential endpoint.
+ *
+ * Keyed by IP *and* the address being tried, so one person fumbling their own
+ * password cannot spend the allowance of everyone else behind the same NAT -
+ * a college, an office or a mobile carrier all share one public IP.
+ * ipKeyGenerator is used rather than req.ip directly so IPv6 clients group by
+ * subnet instead of by individual address, which is trivial to rotate.
+ */
+function credentialKey(req: Request): string {
+  const ip = ipKeyGenerator(req.ip ?? "");
+  const email =
+    typeof req.body?.email === "string"
+      ? req.body.email.trim().toLowerCase()
+      : "";
+  return email ? ip + "|" + email : ip;
+}
+
+/**
+ * A fresh pair of limiters for ONE credential endpoint.
+ *
+ * This replaces a single shared instance that was mounted on student, admin
+ * and partner sign-in, registration and password reset simultaneously. One
+ * instance means one store, so all five routes drew from the same bucket of
+ * ten requests per IP: mistyping a password twice and then requesting a reset
+ * locked the account owner out for fifteen minutes, and on a shared IP the
+ * whole building shared that allowance. Call this once per mount so each
+ * endpoint counts separately.
+ *
+ * Two layers, because they defend different things:
+ *  - per identity (IP + address): stops guessing against one account
+ *  - per IP: stops someone cycling through many addresses from one place,
+ *    which the per-identity key alone would happily allow
+ */
+export function authLimiters(): RequestHandler[] {
+  return [
+    rateLimit({
+      windowMs: AUTH_WINDOW_MS,
+      limit: 10,
+      keyGenerator: credentialKey,
+      ...shared,
+    }),
+    rateLimit({
+      windowMs: AUTH_WINDOW_MS,
+      limit: 60,
+      ...shared,
+    }),
+  ];
+}
 
 /**
  * Sending an OTP costs an email and can be aimed at an address the caller does

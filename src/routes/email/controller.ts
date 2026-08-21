@@ -6,7 +6,7 @@ import { and, eq } from "drizzle-orm";
 import * as path from "path";
 const { randomInt } = require("crypto");
 import { JWT_SECRET_STU } from "../../middleware";
-import { signPasswordResetToken } from "../../utils/jwt";
+import {signPasswordResetToken, credentialFingerprint } from "../../utils/jwt";
 import {
   claimReceipt,
   releaseReceipt,
@@ -392,12 +392,23 @@ export const sendOTPReset: RequestHandler = async (req: Request, res: Response) 
             return;
         }
         
+        /**
+         * Answer the same way whether or not the address is registered.
+         * Replying "Email does not exist" turned this endpoint into a free
+         * membership check - anyone could enumerate which addresses have
+         * accounts - which is exactly what sign-in already goes out of its way
+         * to avoid. No account means no code is sent, and the caller cannot
+         * tell the difference.
+         */
         const isexist = await db
             .select()
             .from(userTable)
             .where(emailEquals(userTable.email, email));
         if (isexist.length === 0) {
-            res.status(400).json({ error: "Email does not exist" });
+            res.json({
+                message: "If that address has an account, a reset code is on its way.",
+                data: { email },
+            });
             return;
         }
         
