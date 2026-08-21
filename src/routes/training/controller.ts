@@ -1,3 +1,4 @@
+import { debugLog } from "../../utils/logger";
 import { Request, RequestHandler, Response } from "express";
 import { db } from "../../db/connection";
 import { newCourseFormSchema, updateCourseFormSchema } from "./validation";
@@ -58,7 +59,7 @@ export const getTrainings: RequestHandler = async (
     });
     res.json({ data: trainings });
   } catch (error) {
-    console.log("🚀 ~ getTrainings ~ error:", error);
+    debugLog("🚀 ~ getTrainings ~ error:", error);
     res.status(500).json({
       error: "Server error in fetching training details",
     });
@@ -124,7 +125,7 @@ export const getTraining: RequestHandler = async (
     });
     res.json({ data: training ?? {} });
   } catch (error) {
-    console.log("🚀 ~ getTrainings ~ error:", error);
+    debugLog("🚀 ~ getTrainings ~ error:", error);
     res.status(500).json({
       error: "Server error in fetching training details",
     });
@@ -145,7 +146,7 @@ export const createTraining: RequestHandler = async (
     }
     const rawData = req.body;
     
-    console.log("🚀 ~ createTraining ~ rawData:", rawData);
+    debugLog("🚀 ~ createTraining ~ rawData:", rawData);
 
     const courseCreationParsed = newCourseFormSchema.safeParse({
       ...rawData,
@@ -158,10 +159,10 @@ export const createTraining: RequestHandler = async (
             }),
     });
     
-    console.log("🚀 ~ createTraining ~ parsed:", courseCreationParsed);
+    debugLog("🚀 ~ createTraining ~ parsed:", courseCreationParsed);
 
     if (!courseCreationParsed.success) {
-      console.log("🚀 ~ createTraining ~ errors:", courseCreationParsed.error);
+      debugLog("🚀 ~ createTraining ~ errors:", courseCreationParsed.error);
       res.status(400).json({
         errors: createValidationError(courseCreationParsed),
       });
@@ -195,7 +196,7 @@ export const createTraining: RequestHandler = async (
         });
 
       if (error) {
-        console.log("🚀 ~ createTraining ~ supabase upload error:", error);
+        debugLog("🚀 ~ createTraining ~ supabase upload error:", error);
         res.status(500).json({
           error: "Server error in uploading file!",
         });
@@ -247,7 +248,7 @@ export const createTraining: RequestHandler = async (
     
     res.json({ message: "Course module created successfully!" });
   } catch (error) {
-    console.log("🚀 ~ createTraining ~ error:", error);
+    debugLog("🚀 ~ createTraining ~ error:", error);
     res.status(500).json({
       error: "Server error in creating training course",
     });
@@ -322,7 +323,7 @@ export const updateTraining: RequestHandler = async (
         });
 
       if (error) {
-        console.log("🚀 ~ updateTraining ~ supabase upload error:", error);
+        debugLog("🚀 ~ updateTraining ~ supabase upload error:", error);
         res.status(500).json({
           error: "Server error in uploading profile file!",
         });
@@ -353,7 +354,7 @@ export const updateTraining: RequestHandler = async (
 
     res.json({ message: "Training updated successfully!" });
   } catch (error) {
-    console.log("🚀 ~ updateTraining ~ error:", error);
+    debugLog("🚀 ~ updateTraining ~ error:", error);
     res.status(500).json({
       error: "Server error in updating training",
     });
@@ -416,7 +417,7 @@ export const deleteTraining: RequestHandler = async (
 
     res.json({ message: "Training deleted successfully!" });
   } catch (error) {
-    console.log("🚀 ~ deleteTraining ~ error:", error);
+    debugLog("🚀 ~ deleteTraining ~ error:", error);
     res.status(500).json({
       error: "Server error in deleting training",
     });
@@ -579,7 +580,7 @@ export const deleteTraining: RequestHandler = async (
 //     });
 //     return;
 //   } catch (error) {
-//     console.log("🚀 ~ generateCertificates ~ error:", error);
+//     debugLog("🚀 ~ generateCertificates ~ error:", error);
 //     res.status(500).json({
 //       error: "Server error in generating certificates",
 //     });
@@ -714,7 +715,7 @@ export const deleteTraining: RequestHandler = async (
 //     });
 //     return;
 //   } catch (error) {
-//     console.log("🚀 ~ generateCertificates ~ error:", error);
+//     debugLog("🚀 ~ generateCertificates ~ error:", error);
 //     res.status(500).json({
 //       error: "Server error in generating certificates",
 //     });
@@ -920,7 +921,7 @@ export const generateCertificates: RequestHandler = async (
     });
     return;
   } catch (error) {
-    console.log("🚀 ~ generateCertificates ~ error:", error);
+    debugLog("🚀 ~ generateCertificates ~ error:", error);
     res.status(500).json({
       error: "Server error in generating certificates",
     });
@@ -965,7 +966,7 @@ export const generateUploadSignature: RequestHandler = async (
       },
     });
   } catch (error) {
-    console.log("🚀 ~ generateUploadSignature ~ error:", error);
+    debugLog("🚀 ~ generateUploadSignature ~ error:", error);
     res.status(500).json({
       error: "Server error in generating upload signature",
     });
@@ -998,7 +999,7 @@ export const deleteAsset: RequestHandler = async (
     });
     res.json({ message: "Deleted successully!" });
   } catch (error) {
-    console.log("🚀 ~ deleteAsset ~ error:", error);
+    debugLog("🚀 ~ deleteAsset ~ error:", error);
     res.status(500).json({
       error: "Server error in deleting asset",
     });

@@ -1,3 +1,4 @@
+import { debugLog } from "./utils/logger";
 import { NextFunction, Request, RequestHandler, Response } from "express";
 import {
   ADMIN_AUTH_COOKIE_NAME,
@@ -92,7 +93,7 @@ export const requireAuthToken: (
       next();
       return;
     } catch (error) {
-      console.log("🚀 ~ error:", error);
+      debugLog("🚀 ~ error:", error);
       if (!shouldThrow) {
         next();
         return;

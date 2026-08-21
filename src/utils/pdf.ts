@@ -1,3 +1,4 @@
+import { debugLog } from "./logger";
 import { eq } from "drizzle-orm";
 import { readFileSync } from "fs";
 import path from "path";
@@ -267,7 +268,7 @@ export async function generateCertificate(data: PDFGenerationType) {
         contentType: "application/pdf",
       });
 
-    console.log("🚀 ~ generateCertificate ~ pdfURL:", pdfURL);
+    debugLog("🚀 ~ generateCertificate ~ pdfURL:", pdfURL);
     if (error) {
       console.log("PDF upload error: ", error.message);
       return false;

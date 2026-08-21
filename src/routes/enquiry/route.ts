@@ -1,3 +1,4 @@
+import { imageUpload } from "../../utils/upload";
 import { Router, urlencoded } from "express";
 import {
   individualOrInstitutionRegistration,
@@ -17,7 +18,7 @@ enquiryRouter.post("/plans", createInsitutitionRegistration);
 enquiryRouter.post(
   "/psychology",
   urlencoded({ extended: true }),
-  multer().single("idCard"),
+  imageUpload.single("idCard"),
   enrollPsychologyCounselling,
 );
 enquiryRouter.post("/career", enrollCareerCounselling);

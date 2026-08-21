@@ -1,3 +1,4 @@
+import { debugLog } from "../../utils/logger";
 import { sql } from "drizzle-orm";
 import { Request, RequestHandler, Response } from "express";
 import { z } from "zod";
@@ -59,7 +60,7 @@ export const getTrainings: RequestHandler = async (
     });
     res.json({ data: trainings });
   } catch (error) {
-    console.log("🚀 ~ getTrainings ~ error:", error);
+    debugLog("🚀 ~ getTrainings ~ error:", error);
     res.status(500).json({
       error: "Server error in fetching training details",
     });
@@ -123,10 +124,10 @@ export const getskillDevelopments: RequestHandler = async (
         category: true,
       },
     });
-    console.log("🚀 ~ getskillDevelopments ~ trainings:", trainings);
+    debugLog("🚀 ~ getskillDevelopments ~ trainings:", trainings);
     res.json({ data: trainings });
   } catch (error) {
-    console.log("🚀 ~ getTrainings ~ error:", error);
+    debugLog("🚀 ~ getTrainings ~ error:", error);
     res.status(500).json({
       error: "Server error in fetching training details",
     });
@@ -193,7 +194,7 @@ export const getFinishingSchools: RequestHandler = async (
     });
     res.json({ data: trainings });
   } catch (error) {
-    console.log("🚀 ~ getTrainings ~ error:", error);
+    debugLog("🚀 ~ getTrainings ~ error:", error);
     res.status(500).json({
       error: "Server error in fetching training details",
     });
@@ -309,12 +310,12 @@ export const getTraining: RequestHandler = async (
       lessons:  (training.lessons)
        
     };
-    console.log("🚀 ~ getTraining ~ responseData:", responseData);
+    debugLog("🚀 ~ getTraining ~ responseData:", responseData);
     res.json({
       data: responseData,
     });
   } catch (error) {
-    console.log("🚀 ~ getTraining ~ error:", error);
+    debugLog("🚀 ~ getTraining ~ error:", error);
     res.status(500).json({
       error: "Server error in fetching training details",
     });
@@ -355,7 +356,7 @@ export const captureFeedback: RequestHandler = async (
     });
     res.json({ message: "Feedback was shared successfully!" });
   } catch (error) {
-    console.log("🚀 ~ captureFeedback ~ error:", error);
+    debugLog("🚀 ~ captureFeedback ~ error:", error);
     res.status(500).json({
       error: "Server error in saving feedback",
     });

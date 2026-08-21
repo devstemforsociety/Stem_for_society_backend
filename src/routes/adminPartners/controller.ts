@@ -1,3 +1,4 @@
+import { debugLog } from "../../utils/logger";
 import { Request, RequestHandler, Response } from "express";
 import { INVALID_SESSION_MSG } from "../../utils/constants";
 import { db } from "../../db/connection";
@@ -39,7 +40,7 @@ export const getAdminPartners: RequestHandler = async (
     });
     res.json({ data: partners });
   } catch (error) {
-    console.log("🚀 ~ getAdminPartners ~ error:", error);
+    debugLog("🚀 ~ getAdminPartners ~ error:", error);
     res.status(500).json({
       error: "Server error in fetching partner details",
     });
@@ -52,7 +53,7 @@ export const getAdminPartner: RequestHandler = async (
 ) => {
   try {
     const adminAuth = req.auth["ADMIN"];
-    console.log("🚀 ~ adminAuth:", adminAuth);
+    debugLog("🚀 ~ adminAuth:", adminAuth);
     if (!adminAuth) {
       res.status(401).json({
         error: INVALID_SESSION_MSG,
@@ -114,7 +115,7 @@ export const getAdminPartner: RequestHandler = async (
     }
     res.json({ data: { ...partner, payoutEligibility } });
   } catch (error) {
-    console.log("🚀 ~ getAdminPartners ~ error:", error);
+    debugLog("🚀 ~ getAdminPartners ~ error:", error);
     res.status(500).json({
       error: "Server error in fetching partner details",
     });
@@ -163,7 +164,7 @@ export const approvePartner: RequestHandler = async (
           : "Partner request denied",
     });
   } catch (error) {
-    console.log("🚀 ~ approvePartner ~ error:", error);
+    debugLog("🚀 ~ approvePartner ~ error:", error);
     res.status(500).json({
       error: "Server error in approving partner",
     });
@@ -215,7 +216,7 @@ export const verifyPartnerAccount: RequestHandler = async (
     // }
     res.json({ message: "Verified successfully!" });
   } catch (error) {
-    console.log("🚀 ~ verifyPartnerAccount ~ error:", error);
+    debugLog("🚀 ~ verifyPartnerAccount ~ error:", error);
     res.status(500).json({
       error: "Server error in verifying account details",
     });

@@ -1,3 +1,4 @@
+import { debugLog } from "../../utils/logger";
 import { Router } from "express";
 //import { redis } from "../../redis";
 
@@ -5,7 +6,7 @@ const testRouter = Router();
 
 // testRouter.get("/redis-data", async (req, res) => {
 //   const redisData = await redis.get("dummy");
-//   console.log("🚀 ~ testRouter.get ~ redisData:", redisData);
+//   debugLog("🚀 ~ testRouter.get ~ redisData:", redisData);
 //   res.send(redisData);
 // });
 

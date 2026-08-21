@@ -1,6 +1,15 @@
 import cookieParser from "cookie-parser";
-import cors from "cors";
 import "dotenv/config";
+import {
+  authLimiter,
+  corsMiddleware,
+  globalLimiter,
+  otpSendLimiter,
+  otpVerifyLimiter,
+  CORS_DENIED,
+  paymentLimiter,
+  securityHeaders,
+} from "./security";
 import { eq } from "drizzle-orm";
 import { trainingEnrolmentTable } from "./db/schema";
 import express, { Application, Request, Response } from "express";
@@ -36,22 +45,19 @@ app.use("/payments/verify", express.raw({
   limit: "50mb" // Increase limit if needed
 }));
 
-// Standard JSON middleware for all other routes
-app.use(express.json());
+// Standard JSON middleware for all other routes. The body cap keeps a single
+// oversized request from exhausting memory.
+app.use(express.json({ limit: "1mb" }));
 
-// CORS configuration
-const corsOptions = {
-  origin: "*",
-  credentials: true,
-  methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization", "Cookie", "X-Correlation-Id"],
-  optionsSuccessStatus: 200
-};
+// Behind Render/Netlify the client IP arrives in X-Forwarded-For. Without
+// this, every request looks like it comes from the proxy and the rate limits
+// below would be shared by all users at once.
+app.set("trust proxy", 1);
 
-console.log('CORS configuration:', corsOptions);
-
-app.use(cors(corsOptions));
+app.use(securityHeaders());
+app.use(corsMiddleware());
 app.use(cookieParser());
+app.use(globalLimiter);
 
 app.get("/", (req: Request, res: Response) => {
   res.send("Welcome to Express & TypeScript Server");
@@ -85,7 +91,21 @@ app.get("/health", async (req: Request, res: Response) => {
 });
 
 // Handle preflight requests
-app.options("*", cors(corsOptions));
+app.options("*", corsMiddleware());
+
+/**
+ * Tighter limits on the endpoints worth attacking: credential guessing, OTP
+ * brute force, OTP flooding (which also spends real email quota), and the
+ * endpoints that create payment orders. Registered before the routers so they
+ * run first.
+ */
+app.use(["/auth/sign-in", "/auth/register", "/auth/reset-password"], authLimiter);
+app.use("/admin/auth/sign-in", authLimiter);
+app.use("/partner/auth/sign-in", authLimiter);
+app.use(["/email/sendOTP", "/email/resetOTP"], otpSendLimiter);
+app.use("/email/verifyOTP", otpVerifyLimiter);
+app.use("/payments/create", paymentLimiter);
+app.use("/enquiry", paymentLimiter);
 
 app.use("/auth", authRouter);
 app.use("/trainings", studentTrainingRouter);
@@ -110,14 +130,22 @@ app.use("/email", emailRouter);
 
 app.use("/testing", testRouter);
 
-// Catch-all route for debugging 404 errors
+// Unmatched routes. This previously logged and then returned without sending
+// anything, so every 404 hung the client until it timed out and held a
+// connection open for the duration.
 app.use("*", (req: Request, res: Response) => {
-  console.log(`404 - Route not found: ${req.method} ${req.originalUrl}`);
+  res.status(404).json({ error: "Not found" });
 });
 
 
 // Global error handler
 app.use((err: any, req: Request, res: Response, next: any) => {
+  // A blocked cross-origin request is a deliberate refusal, not a server fault.
+  if (err?.message === CORS_DENIED) {
+    res.status(403).json({ error: "Origin not allowed" });
+    return;
+  }
+
   console.error('Unhandled error:', err);
   res.status(500).json({
     error: 'Internal server error',

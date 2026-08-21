@@ -1,3 +1,5 @@
+import { priceForEnquiryInPaise } from "./pricing";
+import { debugLog } from "../../utils/logger";
 import { Request, RequestHandler, Response } from "express";
 import {
   IndividualOrInstitutionnSchema,
@@ -35,34 +37,13 @@ const formatDateToString = (date: Date | string | null | undefined): string | nu
   return null;
 };
 
-/**
- * Authoritative pricing for individual / institution registrations, in paise.
- *
- * The client used to send the amount it wanted to be charged, which meant a
- * modified request could buy a 3,000 rupee service for one rupee (SFS-02).
- * Prices now live here and here only. Returns 0 for combinations that are
- * enquiry-only and take no payment.
- */
-function priceForEnquiryInPaise(
-  type: "individual" | "institution",
-  serviceInterest?: string | null,
-): number {
-  if (type === "institution") {
-    // Single-theme is an enquiry, not a purchase.
-    if (serviceInterest === "single-theme") return 0;
-    return 30_00_000; // ₹30,000
-  }
-
-  return 3_00_000; // ₹3,000
-}
-
 export const individualOrInstitutionRegistration: RequestHandler = async (req:Request, res:Response) => {
   try{
-    console.log("🚀 ~ individualOrInstitutionRegistration ~ req.body:", req.body);
+    debugLog("🚀 ~ individualOrInstitutionRegistration ~ req.body:", req.body);
     const dataParsed = IndividualOrInstitutionnSchema.safeParse(req.body);
     if(!dataParsed.success){
       res.status(200).json({errors: createValidationError(dataParsed)});
-      console.log("🚀 ~ individualOrInstitutionRegistration ~ dataParsed:", dataParsed);
+      debugLog("🚀 ~ individualOrInstitutionRegistration ~ dataParsed:", dataParsed);
       return;
     }
       await db.transaction(async (tx) => {
@@ -99,7 +80,7 @@ export const individualOrInstitutionRegistration: RequestHandler = async (req:Re
           selectedTime: data.selectedTime || null,
         })
         .returning();
-console.log("🚀 ~ individualOrInstitutionRegistration ~ InstitutionOrIndividual:", InstitutionOrIndividual);
+debugLog("🚀 ~ individualOrInstitutionRegistration ~ InstitutionOrIndividual:", InstitutionOrIndividual);
       // create transaction
       const referenceName = data.type === "individual" ? "IND_" : "INST_";
       const referenceId = referenceName + nanoid();
@@ -154,7 +135,7 @@ console.log("🚀 ~ individualOrInstitutionRegistration ~ InstitutionOrIndividua
       return;
     });
   } catch (error) {
-    console.log("🚀 ~ enrollIndInst ~ error:", error);
+    debugLog("🚀 ~ enrollIndInst ~ error:", error);
     res.status(500).json({
       success: false,
       error: "Server error in registering !",
@@ -269,7 +250,7 @@ export const createInsitutitionRegistration: RequestHandler = async (
       return;
     });
   } catch (error) {
-    console.log("🚀 ~ createInsitutitionRegistration ~ error:", error);
+    debugLog("🚀 ~ createInsitutitionRegistration ~ error:", error);
     res.status(500).json({
       success: false,
       error: "Server error in registering for plan!",
@@ -407,7 +388,7 @@ export const enrollPsychologyCounselling: RequestHandler = async (
       return;
     });
   } catch (error) {
-    console.log("🚀 ~ enrollPsychologyCounselling ~ error:", error);
+    debugLog("🚀 ~ enrollPsychologyCounselling ~ error:", error);
     res.status(500).json({
       success: false,
       error: "Server error in registering for psychology counselling!",
@@ -450,7 +431,7 @@ export const campusAmbassadorRegistration: RequestHandler = async (
       message: "Registration was successful! You will be contacted shortly",
     });
   } catch (error) {
-    console.log("🚀 ~ campusAmbassadorRegistration ~ error:", error);
+    debugLog("🚀 ~ campusAmbassadorRegistration ~ error:", error);
     res.status(500).json({
       success: false,
       error: "Server error in registering for campus ambassador!",
@@ -558,7 +539,7 @@ export const enrollCareerCounselling: RequestHandler = async (
       return;
     });
   } catch (error) {
-    console.log("🚀 ~ enrollCareerCounselling ~ error:", error);
+    debugLog("🚀 ~ enrollCareerCounselling ~ error:", error);
     res.status(500).json({
       success: false,
       error: "Server error in registering for career counselling!",

@@ -1,3 +1,4 @@
+import { debugLog } from "../../utils/logger";
 import { Request, RequestHandler, Response } from "express";
 import { db } from "../../db/connection";
 import { INVALID_SESSION_MSG } from "../../utils/constants";
@@ -54,10 +55,10 @@ export const getStudents: RequestHandler = async (
         userTable.id,
         userTable.mobile,
       );
-      console.log("🚀 ~ getStudents ~ students:", students);
+      debugLog("🚀 ~ getStudents ~ students:", students);
     res.json({ data: students });
   } catch (error) {
-    console.log("🚀 ~ getStudents ~ error:", error);
+    debugLog("🚀 ~ getStudents ~ error:", error);
     res.status(500).json({
       error: "Server error in fetching student details",
     });

@@ -1,3 +1,4 @@
+import { debugLog } from "../../utils/logger";
 import { Request, RequestHandler, Response } from "express";
 import { db } from "../../db/connection";
 import { JWT_SECRET_AD } from "../../middleware";
@@ -52,7 +53,7 @@ export const registerUser: RequestHandler = async (
       message: "This feature has not been implemented yet!",
     });
   } catch (error) {
-    console.log("🚀 ~ constregisterUser:RequestHandler= ~ error:", error);
+    debugLog("🚀 ~ constregisterUser:RequestHandler= ~ error:", error);
     // if (error instanceof DatabaseError) {
     //   if (error.code === "23505" && error.constraint === "user_mobile_unique") {
     //     res.status(500).json({
@@ -126,7 +127,7 @@ export const signIn: RequestHandler = async (req: Request, res: Response) => {
       },
     });
   } catch (error) {
-    console.log("🚀 ~ signIn ~ error:", error);
+    debugLog("🚀 ~ signIn ~ error:", error);
     res.status(500).json({
       error: "Server error in signing in",
     });
@@ -158,7 +159,7 @@ export const getUserInfo: RequestHandler = async (
     });
     res.json({ ...userInfo, role: "ADMIN" });
   } catch (error) {
-    console.log("🚀 ~ getUserInfo ~ error:", error);
+    debugLog("🚀 ~ getUserInfo ~ error:", error);
     res.status(500).json({
       error: "Server error in obtaining user information",
     });

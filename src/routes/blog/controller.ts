@@ -1,3 +1,4 @@
+import { debugLog } from "../../utils/logger";
 import { Request, RequestHandler, Response } from "express";
 import { db } from "../../db/connection";
 import { z } from "zod";
@@ -36,7 +37,7 @@ export const getBlogs: RequestHandler = async (req: Request, res: Response) => {
     });
     res.json({ data: blogs });
   } catch (error) {
-    console.log("🚀 ~ getBlogs ~ error:", error);
+    debugLog("🚀 ~ getBlogs ~ error:", error);
     res.status(500).json({
       error: "Server error in fetching blogs",
     });
@@ -85,7 +86,7 @@ export const getBlog: RequestHandler = async (req: Request, res: Response) => {
     }
     res.json({ data: blog });
   } catch (error) {
-    console.log("🚀 ~ getBlogs ~ error:", error);
+    debugLog("🚀 ~ getBlogs ~ error:", error);
     res.status(500).json({
       error: "Server error in fetching blog",
     });
@@ -176,7 +177,7 @@ export const createBlog: RequestHandler = async (
       message: "Blog created successfully",
     });
   } catch (error) {
-    console.log("🚀 ~ createBlog ~ error:", error);
+    debugLog("🚀 ~ createBlog ~ error:", error);
     res.status(500).json({
       error: "Server error in creating blog",
     });
@@ -227,7 +228,7 @@ export const approveBlog: RequestHandler = async (
       message: `Blog ${intentParsed.data.intent === "approve" ? "approval" : "rejection"} successful!`,
     });
   } catch (error) {
-    console.log("🚀 ~ approveBlog ~ error:", error);
+    debugLog("🚀 ~ approveBlog ~ error:", error);
     res.status(500).json({
       error: "Server error in approving blog",
     });

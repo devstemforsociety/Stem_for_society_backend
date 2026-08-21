@@ -1,3 +1,4 @@
+import { debugLog } from "../../utils/logger";
 import { Request, RequestHandler, Response } from "express";
 import { INVALID_SESSION_MSG } from "../../utils/constants";
 import { db } from "../../db/connection";
@@ -25,7 +26,7 @@ export const getAdminStudents: RequestHandler = async (
     });
     res.json({ data: students });
   } catch (error) {
-    console.log("🚀 ~ getAdminStudents ~ error:", error);
+    debugLog("🚀 ~ getAdminStudents ~ error:", error);
     res.status(500).json({
       error: "Server error in fetching student details",
     });
@@ -72,7 +73,7 @@ export const getAdminStudent: RequestHandler = async (
     });
     res.json({ data: student ?? {} });
   } catch (error) {
-    console.log("🚀 ~ getAdminStudents ~ error:", error);
+    debugLog("🚀 ~ getAdminStudents ~ error:", error);
     res.status(500).json({
       error: "Server error in fetching student details",
     });

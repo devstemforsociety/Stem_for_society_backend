@@ -1,3 +1,4 @@
+import { debugLog } from "../../utils/logger";
 import { and, eq } from "drizzle-orm";
 import { Request, RequestHandler, Response } from "express";
 import { nanoid } from "nanoid";
@@ -63,7 +64,7 @@ export const createPayment: RequestHandler = async (
         .from(trainingTable)
         .where(eq(trainingTable.id, trainingId.data.trainingId)),
     ]);
-    console.log("🚀 ~ training:", training);
+    debugLog("🚀 ~ training:", training);
     if (!training) {
       res.status(404).json({
         error: "Could not find the training",
@@ -115,7 +116,7 @@ export const createPayment: RequestHandler = async (
         },
       })
       .returning();
-    console.log("🚀 ~ enrolment:", enrolment);
+    debugLog("🚀 ~ enrolment:", enrolment);
 
     const receiptId = nanoid(21);
 
@@ -156,7 +157,7 @@ export const createPayment: RequestHandler = async (
       },
     });
   } catch (error) {
-    console.log("🚀 ~ createPayment ~ error:", error);
+    debugLog("🚀 ~ createPayment ~ error:", error);
     res.status(500).json({
       error: "Server error in creating payment",
     });
@@ -170,11 +171,12 @@ export const verifyPayment: RequestHandler = async (
   try {
     let errorMessage;
 
-    // Debug: Log environment variables (first few characters only for security)
-    console.log("[WH]: Debug - Environment check:");
-    console.log("[WH]: RZPY_WH_SECRET exists:", !!RZPY_WH_SECRET);
-    console.log("[WH]: RZPY_WH_SECRET length:", RZPY_WH_SECRET?.length);
-    console.log("[WH]: RZPY_WH_SECRET preview:", RZPY_WH_SECRET?.substring(0, 10) + "...");
+    // Whether the webhook secret is configured is worth knowing; its value,
+    // even partially, is not - a prefix narrows a brute-force search and these
+    // lines ran on every webhook delivery.
+    if (!RZPY_WH_SECRET) {
+      console.error("[WH]: RZPY_WH_SECRET is not configured - cannot verify webhooks");
+    }
 
     async function verifyAndProcessPayment(
       data: unknown,
@@ -184,7 +186,7 @@ export const verifyPayment: RequestHandler = async (
       const rzpySuccess = partialRzpyWebhookSchema.safeParse(data);
 
       if (!rzpySuccess.success) {
-        console.log("[WH]: failed", "Parsing failed. invalid schema");
+        debugLog("[WH]: failed", "Parsing failed. invalid schema");
         console.dir(rzpySuccess.error, { depth: 5 });
         return;
       }
@@ -197,7 +199,7 @@ export const verifyPayment: RequestHandler = async (
       // obtain reference no
       const referenceId = rzpyOrder.receipt;
       if (!referenceId) {
-        console.log(
+        debugLog(
           "[WH]: failed",
           "Invalid reference Id. Cannot fetch system's reference ID",
         );
@@ -209,7 +211,7 @@ export const verifyPayment: RequestHandler = async (
         const data = rzpySuccess.data;
 
         errorMessage = "Payment verification failed. Invalid WH from server";
-        console.log("[WH]: error", errorMessage);
+        debugLog("[WH]: error", errorMessage);
 
         if (referenceId.includes("INST_")) {
           await db
@@ -296,7 +298,7 @@ export const verifyPayment: RequestHandler = async (
 
       if (transactionAlready?.id) {
         errorMessage = "WH already received";
-        console.log("[WH]: already:", errorMessage);
+        debugLog("[WH]: already:", errorMessage);
         return;
       }
 
@@ -309,7 +311,7 @@ export const verifyPayment: RequestHandler = async (
         },
       });
       if (existingTxn?.status === "success") {
-        console.log("[WH]: Transaction already success in DB — skipping webhook overwrite");
+        debugLog("[WH]: Transaction already success in DB — skipping webhook overwrite");
         return;
       }
 
@@ -328,7 +330,7 @@ export const verifyPayment: RequestHandler = async (
 
           paymentStatus = capture.status;
         } catch (captureError: any) {
-          console.log("[WH]: Payment capture failed:", captureError);
+          debugLog("[WH]: Payment capture failed:", captureError);
           // In live mode, Razorpay auto-captures GPay payments.
           // If webhook fires after auto-capture, manual capture throws "already captured".
           // This should be treated as SUCCESS, not failure — money was actually received.
@@ -342,7 +344,7 @@ export const verifyPayment: RequestHandler = async (
             errMsg.includes("captured") ||
             captureError?.statusCode === 400;
           if (alreadyCaptured) {
-            console.log("[WH]: Payment already captured (auto-capture), treating as success");
+            debugLog("[WH]: Payment already captured (auto-capture), treating as success");
             paymentStatus = "captured";
           } else {
             paymentStatus = "failed";
@@ -412,7 +414,7 @@ export const verifyPayment: RequestHandler = async (
             );
         }
         errorMessage = "Payment failed. Invalid WH schema";
-        console.log("[WH]: error", errorMessage);
+        debugLog("[WH]: error", errorMessage);
         return;
       }
 
@@ -511,7 +513,7 @@ export const verifyPayment: RequestHandler = async (
 
     if (!rzpyWHSignature || !rzpyIdempotency) {
       errorMessage = "Invalid request - No signature found";
-      console.log("[WH]: errorMessage:", errorMessage);
+      debugLog("[WH]: errorMessage:", errorMessage);
       res.status(400).json({ error: "Invalid request" });
       return;
     }
@@ -521,24 +523,24 @@ export const verifyPayment: RequestHandler = async (
     
     if (!rawBody) {
       errorMessage = "Raw body not found - middleware issue";
-      console.log("[WH]: errorMessage:", errorMessage);
+      debugLog("[WH]: errorMessage:", errorMessage);
       res.status(400).json({ error: "Invalid request - no raw body" });
       return;
     }
 
-    console.log("[WH]: Raw body type:", typeof rawBody);
-    console.log("[WH]: Is Buffer:", Buffer.isBuffer(rawBody));
-    console.log("[WH]: Raw body length:", rawBody.length);
+    debugLog("[WH]: Raw body type:", typeof rawBody);
+    debugLog("[WH]: Is Buffer:", Buffer.isBuffer(rawBody));
+    debugLog("[WH]: Raw body length:", rawBody.length);
 
     // Parse the JSON data from the raw body for processing
     let rawData;
     try {
       rawData = JSON.parse(rawBody.toString());
-      console.log("[WH]: data:");
+      debugLog("[WH]: data:");
       console.dir(rawData, { depth: 6 });
     } catch (parseError) {
       errorMessage = "Failed to parse webhook data";
-      console.log("[WH]: errorMessage:", errorMessage, parseError);
+      debugLog("[WH]: errorMessage:", errorMessage, parseError);
       res.status(400).json({ error: "Invalid JSON data" });
       return;
     }
@@ -556,9 +558,9 @@ export const verifyPayment: RequestHandler = async (
         String(rzpyWHSignature),
         RZPY_WH_SECRET!,
       );
-      console.log("[WH]: Razorpay validateWebhookSignature result:", razorpayVerified);
+      debugLog("[WH]: Razorpay validateWebhookSignature result:", razorpayVerified);
     } catch (verificationError) {
-      console.log("[WH]: Razorpay verification error:", verificationError);
+      debugLog("[WH]: Razorpay verification error:", verificationError);
     }
 
     try {
@@ -570,25 +572,25 @@ export const verifyPayment: RequestHandler = async (
       
       manualVerified = expectedSignature === String(rzpyWHSignature);
       
-      console.log("[WH]: Manual verification:");
-      console.log("[WH]: Our calculated signature:", expectedSignature);
-      console.log("[WH]: Razorpay signature:", rzpyWHSignature);
-      console.log("[WH]: Manual verification result:", manualVerified);
+      debugLog("[WH]: Manual verification:");
+      debugLog("[WH]: Our calculated signature:", expectedSignature);
+      debugLog("[WH]: Razorpay signature:", rzpyWHSignature);
+      debugLog("[WH]: Manual verification result:", manualVerified);
     } catch (manualError) {
-      console.log("[WH]: Manual verification error:", manualError);
+      debugLog("[WH]: Manual verification error:", manualError);
     }
 
     // Use either verification method
     webhookVerified = razorpayVerified || manualVerified;
     
-    console.log("[WH]: Final verification result:", webhookVerified);
-    console.log("[WH]: Razorpay method:", razorpayVerified);
-    console.log("[WH]: Manual method:", manualVerified);
+    debugLog("[WH]: Final verification result:", webhookVerified);
+    debugLog("[WH]: Razorpay method:", razorpayVerified);
+    debugLog("[WH]: Manual method:", manualVerified);
 
 
     if (!webhookVerified) {
       errorMessage = "Invalid webhook. Could not be verified!";
-      console.log("[WH]: errorMessage:", errorMessage);
+      debugLog("[WH]: errorMessage:", errorMessage);
       res.status(400).json({ error: errorMessage });
       return;
     }
@@ -598,7 +600,7 @@ export const verifyPayment: RequestHandler = async (
 
     res.json({ success: true });
   } catch (error) {
-    console.log("🚀 ~ verifyPayment ~ error:", error);
+    debugLog("🚀 ~ verifyPayment ~ error:", error);
     res.status(500).json({
       error: "Server error in verifying payment",
     });
@@ -611,10 +613,16 @@ export const getPaymentStatus: RequestHandler = async (
   res: Response,
 ) => {
   try {
+    const studentAuth = req.auth?.["STUDENT"];
+    if (!studentAuth) {
+      res.status(401).json({ error: INVALID_SESSION_MSG });
+      return;
+    }
+
     // Express 5 types route params as string | string[]; a single-segment
     // param is always a string.
     const orderId = String(req.params.orderId);
-    
+
     const transaction = await db.query.transactionTable.findFirst({
       where: eq(transactionTable.orderId, orderId),
       columns: {
@@ -622,9 +630,26 @@ export const getPaymentStatus: RequestHandler = async (
         paymentId: true,
         orderId: true,
       },
+      // Needed to prove the order belongs to the caller.
+      with: {
+        enrolment: {
+          with: {
+            user: { columns: { id: true } },
+          },
+        },
+      },
     });
 
     if (!transaction) {
+      res.status(404).json({
+        error: "Transaction not found",
+      });
+      return;
+    }
+
+    // Looking the order up by id alone let any signed-in user read anyone
+    // else's payment state (SFS-11). Mirrors the check in verifyClientPayment.
+    if (transaction.enrolment?.user?.id !== studentAuth.id) {
       res.status(404).json({
         error: "Transaction not found",
       });
@@ -639,7 +664,7 @@ export const getPaymentStatus: RequestHandler = async (
       },
     });
   } catch (error) {
-    console.log("🚀 ~ getPaymentStatus ~ error:", error);
+    debugLog("🚀 ~ getPaymentStatus ~ error:", error);
     res.status(500).json({
       error: "Server error in fetching payment status",
     });
@@ -766,7 +791,7 @@ export const verifyClientPayment: RequestHandler = async (
       },
     });
   } catch (error) {
-    console.log("🚀 ~ verifyClientPayment ~ error:", error);
+    debugLog("🚀 ~ verifyClientPayment ~ error:", error);
     res.status(500).json({
       error: "Server error in payment verification",
     });
@@ -795,7 +820,7 @@ export const verifyClientPayment: RequestHandler = async (
 //       data: debugInfo,
 //     });
 //   } catch (error) {
-//     console.log("🚀 ~ debugWebhook ~ error:", error);
+//     debugLog("🚀 ~ debugWebhook ~ error:", error);
 //     res.status(500).json({
 //       error: "Server error in debug endpoint",
 //     });

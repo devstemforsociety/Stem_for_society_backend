@@ -1,3 +1,4 @@
+import { debugLog } from "../../utils/logger";
 import { generateHashPassword } from "../../utils/password";
 import { db } from "../connection";
 import { ourPartnersTable } from "../schema";
@@ -16,7 +17,7 @@ async function addUser() {
       salt: pwd.salt,
     })
     .returning();
-  console.log("🚀 ~ xc ~ x:", xc);
+  debugLog("🚀 ~ xc ~ x:", xc);
 }
 
 async function addAdmin() {

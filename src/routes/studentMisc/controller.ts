@@ -1,3 +1,4 @@
+import { debugLog } from "../../utils/logger";
 import { Request, RequestHandler, Response } from "express";
 export const saveUserProfile: RequestHandler = async (
   req: Request,
@@ -5,7 +6,7 @@ export const saveUserProfile: RequestHandler = async (
 ) => {
   try {
   } catch (error) {
-    console.log("🚀 ~ saveUserProfile ~ error:", error);
+    debugLog("🚀 ~ saveUserProfile ~ error:", error);
     res.status(500).json({
       error: "Server error in saving user profile",
     });

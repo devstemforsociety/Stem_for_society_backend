@@ -1,3 +1,4 @@
+import { debugLog } from "../../utils/logger";
 import { Request, RequestHandler, Response } from "express";
 import { INVALID_SESSION_MSG } from "../../utils/constants";
 import { db } from "../../db/connection";
@@ -47,7 +48,7 @@ export const getTrainings: RequestHandler = async (
 
     res.json({ data: trainings });
   } catch (error) {
-    console.log("🚀 ~ getTrainings ~ error:", error);
+    debugLog("🚀 ~ getTrainings ~ error:", error);
     res.status(500).json({
       error: "Server error in fetching training details",
     });
@@ -118,7 +119,7 @@ export const getTraining: RequestHandler = async (
     });
     res.json({ data: training ?? {} });
   } catch (error) {
-    console.log("🚀 ~ getTrainings ~ error:", error);
+    debugLog("🚀 ~ getTrainings ~ error:", error);
     res.status(500).json({
       error: "Server error in fetching training details",
     });
@@ -231,7 +232,7 @@ export const approveTraining: RequestHandler = async (
                 }),
               ),
             );
-            console.log(
+            debugLog(
               "🚀 ~ approveTraining ~ cancellation email sent:",
               {
                 trainingId: trainingId.data,
@@ -254,7 +255,7 @@ export const approveTraining: RequestHandler = async (
           : "Training approval was rejected ",
     });
   } catch (error) {
-    console.log("🚀 ~ approveTraining ~ error:", error);
+    debugLog("🚀 ~ approveTraining ~ error:", error);
     res.status(500).json({
       error: "Server error in approving training",
     });

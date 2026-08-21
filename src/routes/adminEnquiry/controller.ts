@@ -1,3 +1,4 @@
+import { debugLog } from "../../utils/logger";
 import { Request, RequestHandler, Response } from "express";
 import { db } from "../../db/connection";
 import { INVALID_SESSION_MSG } from "../../utils/constants";
@@ -27,7 +28,7 @@ export const getIndividualTrainings: RequestHandler = async (
 
   //   res.json({ data: psychologyTrainings });
   // } catch (error) {
-  //   console.log("🚀 ~ getPsychologyTrainings ~ error:", error);
+  //   debugLog("🚀 ~ getPsychologyTrainings ~ error:", error);
   //   res.status(500).json({
   //     error: "Server error in fetching psychology training details",
   //   });
@@ -59,10 +60,10 @@ export const getIndividualTrainings: RequestHandler = async (
         return operators.desc(fields.createdAt);
       },
     });
-    console.log("🚀 ~ getPsychologyTrainings ~ psychologyTrainings:", psychologyTrainings)  ;
+    debugLog("🚀 ~ getPsychologyTrainings ~ psychologyTrainings:", psychologyTrainings)  ;
     res.json({ data: psychologyTrainings });
   } catch (error) {
-    console.log("🚀 ~ getPsychologyTrainings ~ error:", error);
+    debugLog("🚀 ~ getPsychologyTrainings ~ error:", error);
     res.status(500).json({
       error: "Server error in fetching psychology training details",
     });
@@ -99,7 +100,7 @@ export const getIndividualTrainings: RequestHandler = async (
 
 //     res.json({ data: careerCounselling });
 //   } catch (error) {
-//     console.log("🚀 ~ getCareerCounselling ~ error:", error);
+//     debugLog("🚀 ~ getCareerCounselling ~ error:", error);
 //     res.status(500).json({
 //       error: "Server error in fetching career counselling details",
 //     });
@@ -126,7 +127,7 @@ export const getCAApplications: RequestHandler = async (
 
     res.json({ data: caApplications });
   } catch (error) {
-    console.log("🚀 ~ getCAApplications ~ error:", error);
+    debugLog("🚀 ~ getCAApplications ~ error:", error);
     res.status(500).json({
       error: "Server error in fetching campus ambassador application details",
     });
@@ -173,7 +174,7 @@ insitutionRegistrations.forEach(inst => {
 
     res.json({ data: insitutionRegistrations });
   } catch (error) {
-    console.log("🚀 ~ getInstitutionRegistrations ~ error:", error);
+    debugLog("🚀 ~ getInstitutionRegistrations ~ error:", error);
     res.status(500).json({
       error: "Server error in fetching campus ambassador application details",
     });

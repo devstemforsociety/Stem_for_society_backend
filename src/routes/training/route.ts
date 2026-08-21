@@ -1,3 +1,4 @@
+import { imageUpload } from "../../utils/upload";
 import { Router, urlencoded } from "express";
 import {
   createTraining,
@@ -19,7 +20,7 @@ trainingRouter.get("/:trainingId", requireAuthToken("PARTNER"), getTraining);
 trainingRouter.post(
   "/",
   urlencoded({ extended: true }),
-  multer().single("cover"),
+  imageUpload.single("cover"),
   requireAuthToken("PARTNER"),
   createTraining,
 );
@@ -36,7 +37,7 @@ trainingRouter.post(
 trainingRouter.post("/delete-asset", requireAuthToken("PARTNER"), deleteAsset);
 trainingRouter.patch(
   "/:trainingId",
-  multer().single("cover"),
+  imageUpload.single("cover"),
   requireAuthToken("PARTNER"),
   updateTraining,
 );

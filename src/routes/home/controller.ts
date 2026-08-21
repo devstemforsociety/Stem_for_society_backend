@@ -1,3 +1,4 @@
+import { debugLog } from "../../utils/logger";
 import { Request, RequestHandler, Response } from "express";
 import { db } from "../../db/connection";
 
@@ -25,7 +26,7 @@ export const getCarouselCourses: RequestHandler = async (
     });
     res.json({ data: courses });
   } catch (error) {
-    console.log("🚀 ~ getCarouselCourses ~ error:", error);
+    debugLog("🚀 ~ getCarouselCourses ~ error:", error);
     res.status(500).json({
       error: "Server error in fetching courses data",
     });

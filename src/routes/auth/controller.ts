@@ -1,3 +1,4 @@
+import { debugLog } from "../../utils/logger";
 import { RequestHandler, Request, Response } from "express";
 import {
   getUserInfoSchema,
@@ -43,7 +44,7 @@ export const registerUser: RequestHandler = async (
       message: "Account created successfully!",
     });
   } catch (error) {
-    console.log("🚀 ~ constregisterUser:RequestHandler= ~ error:", error);
+    debugLog("🚀 ~ constregisterUser:RequestHandler= ~ error:", error);
     if (error instanceof DatabaseError) {
       if (error.code === "23505" && error.constraint === "user_mobile_unique") {
         res.status(500).json({
@@ -122,7 +123,7 @@ export const signIn: RequestHandler = async (req: Request, res: Response) => {
       },
     });
   } catch (error) {
-    console.log("🚀 ~ signIn ~ error:", error);
+    debugLog("🚀 ~ signIn ~ error:", error);
     res.status(500).json({
       error: "Server error in signing in",
     });
@@ -154,7 +155,7 @@ export const getUserInfo: RequestHandler = async (
     });
     res.json({ ...userInfo, role: "STUDENT" });
   } catch (error) {
-    console.log("🚀 ~ getUserInfo ~ error:", error);
+    debugLog("🚀 ~ getUserInfo ~ error:", error);
     res.status(500).json({
       error: "Server error in obtaining user information",
     });
@@ -191,10 +192,10 @@ export const resetPassword: RequestHandler = async (req: Request, res: Response)
       .update(userTable)
       .set({ hash: hashedPassword.hash, salt: hashedPassword.salt })
       .where(eq(userTable.id, user.id));
-    console.log("🚀 ~ resetPassword ~ user.id:", user.id);
+    debugLog("🚀 ~ resetPassword ~ user.id:", user.id);
     res.json({ message: "Password reset successfully" });
   } catch (error) {
-    console.log("🚀 ~ resetPassword ~ error:", error);
+    debugLog("🚀 ~ resetPassword ~ error:", error);
     res.status(500).json({ error: "Server error in resetting password" });
   }
 };

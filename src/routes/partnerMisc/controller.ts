@@ -76,7 +76,7 @@
 //       },
 //     });
 //   } catch (error) {
-//     console.log("🚀 ~ getHomeStatistics ~ error:", error);
+//     debugLog("🚀 ~ getHomeStatistics ~ error:", error);
 //     res.status(500).json({
 //       error: "Server error in fetching statistics",
 //     });
@@ -118,7 +118,7 @@
 //     }
 //     res.json({ data: partner });
 //   } catch (error) {
-//     console.log("🚀 ~ getProfileDetails ~ error:", error);
+//     debugLog("🚀 ~ getProfileDetails ~ error:", error);
 //     res.status(500).json({
 //       error: "Server error in getting profile details",
 //     });
@@ -204,7 +204,7 @@
 //     }
 //     res.json({ message: "Account details submission successful!" });
 //   } catch (error) {
-//     console.log("🚀 ~ saveAccountDetails ~ error:", error);
+//     debugLog("🚀 ~ saveAccountDetails ~ error:", error);
 //     if (error instanceof RazorpayError) {
 //       res
 //         .status(Number(error.statusCode))
@@ -266,7 +266,7 @@
 //     });
 //     res.json({ message: "Profile details saved successfully!" });
 //   } catch (error) {
-//     console.log("🚀 ~ saveUserProfile ~ error:", error);
+//     debugLog("🚀 ~ saveUserProfile ~ error:", error);
 //     res.status(500).json({
 //       error: "Server error in saving user profile",
 //     });
@@ -274,6 +274,7 @@
 // };
 
 
+import { debugLog } from "../../utils/logger";
 import { Request, RequestHandler, Response } from "express";
 import { db } from "../../db/connection";
 import { eq, inArray, sql } from "drizzle-orm";
@@ -354,7 +355,7 @@ export const getHomeStatistics: RequestHandler = async (
       },
     });
   } catch (error) {
-    console.log("🚀 ~ getHomeStatistics ~ error:", error);
+    debugLog("🚀 ~ getHomeStatistics ~ error:", error);
     res.status(500).json({
       error: "Server error in fetching statistics",
     });
@@ -398,7 +399,7 @@ export const getProfileDetails: RequestHandler = async (
     // Files are already full URLs from Supabase, no need to modify
     res.json({ data: partner });
   } catch (error) {
-    console.log("🚀 ~ getProfileDetails ~ error:", error);
+    debugLog("🚀 ~ getProfileDetails ~ error:", error);
     res.status(500).json({
       error: "Server error in getting profile details",
     });
@@ -484,7 +485,7 @@ export const saveAccountDetails: RequestHandler = async (
     }
     res.json({ message: "Account details submission successful!" });
   } catch (error) {
-    console.log("🚀 ~ saveAccountDetails ~ error:", error);
+    debugLog("🚀 ~ saveAccountDetails ~ error:", error);
     if (error instanceof RazorpayError) {
       res
         .status(Number(error.statusCode))
@@ -651,7 +652,7 @@ export const savePartnerProfile: RequestHandler = async (
     
     res.json({ message: "Profile details saved successfully!" });
   } catch (error) {
-    console.log("🚀 ~ savePartnerProfile ~ error:", error);
+    debugLog("🚀 ~ savePartnerProfile ~ error:", error);
     res.status(500).json({
       error: "Server error in saving user profile",
     });

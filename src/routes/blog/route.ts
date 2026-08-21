@@ -1,3 +1,4 @@
+import { imageUpload } from "../../utils/upload";
 import { Router, urlencoded } from "express";
 import { approveBlog, createBlog, getBlog, getBlogs } from "./controller";
 import multer from "multer";
@@ -14,7 +15,7 @@ blogsRouter.post(
   "/",
   requireAnyAuthToken,
   urlencoded({ extended: true }),
-  multer().single("coverImage"),
+  imageUpload.single("coverImage"),
   createBlog,
 );
 blogsRouter.post("/:blogSlug/approve", requireAuthToken("ADMIN"), approveBlog);

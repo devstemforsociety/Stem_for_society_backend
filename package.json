@@ -10,7 +10,9 @@
     "db:test": "npx tsx src/db/queries/test.ts",
     "db:seed-demo-users": "npx tsx src/db/queries/seed-demo-users.ts",
     "dev": "ts-node-dev --respawn src/index.ts ",
-    "start": "node dist/src/index.js"
+    "start": "node dist/src/index.js",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "keywords": [],
   "author": "",
@@ -28,6 +30,8 @@
     "drizzle-orm": "^0.36.4",
     "drizzle-zod": "^0.5.1",
     "express": "^4.21.1",
+    "express-rate-limit": "^8.6.2",
+    "helmet": "^8.3.0",
     "ioredis": "^5.4.2",
     "jose": "^5.9.6",
     "multer": "^1.4.5-lts.1",
@@ -51,6 +55,7 @@
     "prettier": "^3.4.1",
     "ts-node-dev": "^2.0.0",
     "tsx": "^4.19.2",
-    "typescript": "^5.7.2"
+    "typescript": "^5.7.2",
+    "vitest": "^4.1.11"
   }
 }

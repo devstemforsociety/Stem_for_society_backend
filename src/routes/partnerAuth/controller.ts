@@ -1,3 +1,4 @@
+import { debugLog } from "../../utils/logger";
 import { Request, RequestHandler, Response } from "express";
 import { DatabaseError } from "pg";
 import { db } from "../../db/connection";
@@ -200,7 +201,7 @@ export const registerUser: RequestHandler = async (
       message: "Account created successfully!",
     });
   } catch (error) {
-    console.log("🚀 ~ registerUser ~ error:", error);
+    debugLog("🚀 ~ registerUser ~ error:", error);
     if (error instanceof DatabaseError) {
       if (error.code === "23505" && error.constraint === "instructor_mobile_unique") {
         res.status(500).json({
@@ -277,7 +278,7 @@ export const signIn: RequestHandler = async (req: Request, res: Response) => {
       },
     });
   } catch (error) {
-    console.log("🚀 ~ signIn ~ error:", error);
+    debugLog("🚀 ~ signIn ~ error:", error);
     res.status(500).json({
       error: "Server error in signing in",
     });
@@ -309,7 +310,7 @@ export const getUserInfo: RequestHandler = async (
     });
     res.json({ ...userInfo, role: "PARTNER" });
   } catch (error) {
-    console.log("🚀 ~ getUserInfo ~ error:", error);
+    debugLog("🚀 ~ getUserInfo ~ error:", error);
     res.status(500).json({
       error: "Server error in obtaining user information",
     });
