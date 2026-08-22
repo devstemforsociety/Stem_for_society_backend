@@ -52,6 +52,10 @@ export function buildCorsOptions(): CorsOptions {
         "Authorization",
         "Cookie",
         "X-Correlation-Id",
+        // Also needed here: this permissive branch is what runs whenever
+        // ALLOWED_ORIGINS is unset, which is the case in production today.
+        "sentry-trace",
+        "baggage",
       ],
       optionsSuccessStatus: 200,
     };
@@ -77,6 +81,11 @@ export function buildCorsOptions(): CorsOptions {
       "Authorization",
       "Cookie",
       "X-Correlation-Id",
+      // Sent by the browser Sentry SDK when this API is a trace propagation
+      // target. A header that is not listed here fails preflight and takes
+      // every request down with it, so tracing headers are admitted explicitly.
+      "sentry-trace",
+      "baggage",
     ],
     optionsSuccessStatus: 200,
   };
