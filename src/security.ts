@@ -194,6 +194,19 @@ export const otpVerifyLimiter = rateLimit({
   ...shared,
 });
 
+/**
+ * Browser error reports.
+ *
+ * Generous, because a genuinely broken release makes every visitor report at
+ * once and losing those is the opposite of what the endpoint is for - but
+ * still bounded, since it is unauthenticated.
+ */
+export const clientErrorLimiter = rateLimit({
+  windowMs: 5 * 60 * 1000,
+  limit: 120,
+  ...shared,
+});
+
 /** Order creation costs money to process and creates records. */
 export const paymentLimiter = rateLimit({
   windowMs: 60 * 60 * 1000,

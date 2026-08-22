@@ -99,12 +99,31 @@ export const createBlog: RequestHandler = async (
 ) => {
   try {
     const rawData = req.body;
+
+    // Without this the next line dereferences req.file and throws, which the
+    // catch below reported as a server error - so an author who forgot a cover
+    // image (or whose upload was rejected) lost the whole article to a 500.
+    if (!req.file) {
+      res.status(400).json({
+        error: "A cover image is required to publish an article.",
+      });
+      return;
+    }
+
+    let references: unknown;
+    try {
+      references = JSON.parse(rawData.references ?? "[]");
+    } catch {
+      res.status(400).json({ error: "References are not in a readable format." });
+      return;
+    }
+
     const blogEntry = createBlogSchema.safeParse({
       ...rawData,
-      coverImage: new File([new Uint8Array(req.file!.buffer)], req.file!.filename, {
-        type: req.file!.mimetype,
+      coverImage: new File([new Uint8Array(req.file.buffer)], req.file.filename, {
+        type: req.file.mimetype,
       }),
-      references: JSON.parse(rawData.references),
+      references,
       category: rawData.category, // Add category parsing
     });
     

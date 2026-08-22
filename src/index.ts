@@ -6,6 +6,7 @@ import {
   globalLimiter,
   otpSendLimiter,
   otpVerifyLimiter,
+  clientErrorLimiter,
   CORS_DENIED,
   paymentLimiter,
   securityHeaders,
@@ -29,6 +30,7 @@ import homeRouter from "./routes/home/route";
 import emailRouter from "./routes/email/route"
 
 import enquiryRouter from "./routes/enquiry/route";
+import clientErrorsRouter from "./routes/clientErrors/route";
 import adminApplicationsRouter from "./routes/adminEnquiry/route";
 
 const app: Application = express();
@@ -104,6 +106,7 @@ app.use("/partner/auth/sign-in", authLimiters());
 app.use(["/email/sendOTP", "/email/resetOTP"], otpSendLimiter);
 app.use("/email/verifyOTP", otpVerifyLimiter);
 app.use("/payments/create", paymentLimiter);
+app.use("/client-errors", clientErrorLimiter);
 // Receipt endpoints now resolve the payment server-side before sending, so
 // each call costs database work even when it is rejected. 20/hour is well
 // above what a real checkout needs and well below useful abuse.
@@ -138,6 +141,8 @@ app.use("/enquiry", enquiryRouter);
 app.use("/payments", paymentRouter);
 app.use("/home", homeRouter);
 
+app.use("/client-errors", clientErrorsRouter);
+
 app.use("/email", emailRouter);
 
 app.use("/testing", testRouter);
@@ -155,6 +160,28 @@ app.use((err: any, req: Request, res: Response, next: any) => {
   // A blocked cross-origin request is a deliberate refusal, not a server fault.
   if (err?.message === CORS_DENIED) {
     res.status(403).json({ error: "Origin not allowed" });
+    return;
+  }
+
+  /**
+   * Upload failures are the caller's to fix, not server faults. Multer raises
+   * these after the request body is parsed, so without this they reached the
+   * catch-all below and came back as an opaque 500 - which is what an author
+   * saw after writing an entire article and attaching a photo from a phone.
+   */
+  const uploadMessages: Record<string, string> = {
+    LIMIT_FILE_SIZE: "That file is too large. Images must be 5 MB or smaller.",
+    LIMIT_FIELD_VALUE: "One of the fields is too long to submit.",
+    LIMIT_FILE_COUNT: "Too many files were attached.",
+    LIMIT_FIELD_COUNT: "Too many fields were submitted.",
+    LIMIT_UNEXPECTED_FILE: "An unexpected file was attached.",
+  };
+  if (err?.code && uploadMessages[err.code]) {
+    res.status(400).json({ error: uploadMessages[err.code] });
+    return;
+  }
+  if (err?.name === "UnsupportedImageType") {
+    res.status(400).json({ error: err.message });
     return;
   }
 

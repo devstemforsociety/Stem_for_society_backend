@@ -28,12 +28,23 @@ export const imageUpload = multer({
     fileSize: MAX_FILE_BYTES,
     files: 4,
     fields: 40,
+    /**
+     * Multer defaults non-file fields to 1 MB. A blog written in the rich text
+     * editor easily passes that, and the overflow surfaced as an unexplained
+     * 500 after the author had filled in every step.
+     */
+    fieldSize: 10 * 1024 * 1024,
   },
   fileFilter: (_req, file, callback) => {
     if (!ALLOWED_IMAGE_TYPES.has(file.mimetype)) {
-      callback(
-        new Error("Only JPEG, PNG, WebP or GIF images can be uploaded."),
+      // Named so the error handler can answer 400 with this text rather than
+      // letting it fall through as an unexplained server fault. HEIC is the
+      // default on iPhones, so this path is hit by real users.
+      const rejection = new Error(
+        "Only JPEG, PNG, WebP or GIF images can be uploaded.",
       );
+      rejection.name = "UnsupportedImageType";
+      callback(rejection);
       return;
     }
     callback(null, true);
