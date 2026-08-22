@@ -89,7 +89,20 @@ export const newCourseFormSchema = z
   })
   .refine(({ endDate, startDate }) => endDate > startDate, {
     message: "End date should be greater than start date!",
-  });
+  })
+  /**
+   * A course delivered online has to say where to join it. Without this an
+   * ONLINE course could be created, approved and shown as live with no link at
+   * all, leaving enrolled students with no way to attend.
+   */
+  .refine(
+    ({ type, trainingLink }) =>
+      type === "OFFLINE" || Boolean(trainingLink && trainingLink.trim()),
+    {
+      path: ["trainingLink"],
+      message: "A meeting link is required for online and hybrid courses",
+    },
+  );
 
 export const updateCourseFormSchema = z
   .object({

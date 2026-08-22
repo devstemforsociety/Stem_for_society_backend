@@ -2,6 +2,7 @@ import {
   char,
   integer,
   pgEnum,
+  index,
   pgTable,
   smallint,
   text,
@@ -136,7 +137,17 @@ export const transactionTable = pgTable("transaction", {
    */
   receiptSentAt: timestamp("receipt_sent_at"),
   ...timestamps(),
-});
+},
+  (t) => ({
+    /**
+     * Every payment verification and every webhook delivery looks a row up by
+     * order id, and the enrolment join reads a students transactions - both
+     * were sequential scans, which get linearly slower as payments accumulate.
+     */
+    byOrder: index("transaction_order_id_idx").on(t.orderId),
+    byEnrolment: index("transaction_enrolment_id_idx").on(t.enrolmentId),
+  }),
+);
 
 export const trainingTableRelations = relations(
   trainingTable,

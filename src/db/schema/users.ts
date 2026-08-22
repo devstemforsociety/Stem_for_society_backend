@@ -1,6 +1,8 @@
+import { sql } from "drizzle-orm";
 import {
   boolean,
   char,
+  index,
   integer,
   pgTable,
   text,
@@ -15,17 +17,24 @@ import { addressTable } from "./misc";
 import { accountTable } from "./payout";
 
 
-export const userTable = pgTable("user", {
+export const userTable = pgTable(
+  "user",
+  {
   id: uuid().primaryKey().defaultRandom(),
   firstName: varchar("first_name", { length: 50 }).notNull(),
   lastName: varchar("last_name", { length: 50 }),
   email: varchar({ length: 200 }).notNull().unique(),
   mobile: char({ length: 10 }).notNull().unique(),
   profileImageURL: text().unique(),
-  hash: varchar().notNull(),
-  salt: varchar().notNull(),
-  ...timestamps(),
-});
+    hash: varchar().notNull(),
+    salt: varchar().notNull(),
+    ...timestamps(),
+  },
+  (t) => ({
+    /** Serves emailEquals(): lower(email) = $1. */
+    byLowerEmail: index("user_lower_email_idx").on(sql`lower(${t.email})`),
+  }),
+);
 
 export const userOtp = pgTable("userotp",{
   id: uuid().primaryKey().defaultRandom(),
