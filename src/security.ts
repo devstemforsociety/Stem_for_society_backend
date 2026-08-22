@@ -16,7 +16,7 @@ import { isProductionEnv } from "./utils/env";
 /**
  * Origins allowed to call this API, as a comma-separated list:
  *
- *   ALLOWED_ORIGINS=https://stemforsociety.com,https://www.stemforsociety.com
+ *   ALLOWED_ORIGINS=https://www.stemforsociety.org,https://stemforsociety.org
  *
  * Localhost dev servers are always allowed outside production.
  *
@@ -32,8 +32,15 @@ import { isProductionEnv } from "./utils/env";
  * rather than by editing this list.
  */
 const DEFAULT_ALLOWED_ORIGINS = [
-  "https://stemforsociety.com",
+  // The live site. Note .org - the .com pair below is kept only because an
+  // earlier version of this list had them, and a redirect may still exist.
+  // Getting this wrong takes the whole site down with CORS errors, so it is
+  // checked against the domain the app actually serves from, not against
+  // .env.example.
+  "https://www.stemforsociety.org",
+  "https://stemforsociety.org",
   "https://www.stemforsociety.com",
+  "https://stemforsociety.com",
 ];
 
 function allowedOrigins(): string[] {
@@ -103,7 +110,7 @@ export function securityHeaders(): RequestHandler {
   // structurally matches Express 5's Request. Behaviourally identical.
   return helmet({
     // This service returns JSON, not documents - the CSP that protects users
-    // belongs on the frontend host (see netlify.toml / vercel.json / nginx.conf).
+    // belongs on the frontend host (see vercel.json).
     contentSecurityPolicy: false,
     crossOriginResourcePolicy: { policy: "cross-origin" },
     hsts: {
