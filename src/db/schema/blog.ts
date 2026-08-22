@@ -1,4 +1,4 @@
-import { char, pgTable, text, uuid, varchar } from "drizzle-orm/pg-core";
+import { char, pgTable, text, timestamp, uuid, varchar } from "drizzle-orm/pg-core";
 import { adminTable } from "./users";
 import { timestamps } from "./helper";
 import { relations } from "drizzle-orm";
@@ -11,6 +11,16 @@ export const blogTable = pgTable("blog", {
   coverImage: varchar("cover_image"),
   references: text("references").array(),
   approvedBy: uuid("approved_by").references(() => adminTable.id),
+  /**
+   * When a moderator turned this submission down.
+   *
+   * Rejection used to be expressed by setting approvedBy back to null, which is
+   * indistinguishable from "not looked at yet" - so a rejected article returned
+   * to the pending queue forever and was re-reviewed on every pass. A rejected
+   * blog has rejectedAt set and approvedBy null; a pending one has neither.
+   */
+  rejectedAt: timestamp("rejected_at", { withTimezone: true }),
+  rejectedBy: uuid("rejected_by").references(() => adminTable.id),
   author: uuid("blog_author").references(() => blogAuthorTable.id),
   category: varchar({ length: 50 }),
   ...timestamps(),

@@ -38,15 +38,28 @@ export const IndividualInstitutiontable = pgTable("individual_institution", {
 });
 
 
+/**
+ * One row per institution plan booking.
+ *
+ * schoolName, contactMobile and contactEmail were each unique, and the handler
+ * upserted on schoolName. That made a booking destructive in two ways: a school
+ * booking a second time silently overwrote its own earlier booking - including
+ * the meeting date and time already agreed - and two genuinely different
+ * schools that happen to share a name could not both exist. The transaction
+ * rows survived, so payments existed with no matching booking to service.
+ *
+ * A booking is an event, not an identity: the constraints are gone and each
+ * submission inserts its own row.
+ */
 export const institutionPlanTable = pgTable("institution_plan", {
   id: uuid().primaryKey().defaultRandom(),
-  schoolName: varchar({ length: 200 }).notNull().unique(),
+  schoolName: varchar({ length: 200 }).notNull(),
   addressId: integer()
     .references(() => addressTable.id)
     .notNull(),
   contactName: varchar({ length: 200 }).notNull(),
-  contactMobile: char({ length: 10 }).notNull().unique(),
-  contactEmail: varchar().notNull().unique(),
+  contactMobile: char({ length: 10 }).notNull(),
+  contactEmail: varchar().notNull(),
   studentsCount: integer(),
   selectedDate: varchar("selectedDate", { length: 20 }), // e.g., "2023-10-15"
   selectedTime: varchar("selectedTime", { length: 20 }), // e.g., "10:30 AM", "2:30 PM"

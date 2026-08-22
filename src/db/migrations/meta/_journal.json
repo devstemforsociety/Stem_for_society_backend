@@ -330,6 +330,13 @@
       "when": 1787379943567,
       "tag": "0046_colorful_dazzler",
       "breakpoints": true
+    },
+    {
+      "idx": 47,
+      "version": "7",
+      "when": 1787397223992,
+      "tag": "0047_parched_human_robot",
+      "breakpoints": true
     }
   ]
 }

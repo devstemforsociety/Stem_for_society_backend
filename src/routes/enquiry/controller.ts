@@ -168,7 +168,16 @@ export const createInsitutitionRegistration: RequestHandler = async (
         })
         .returning();
 
-      // create entry
+      /**
+       * One row per booking.
+       *
+       * This upserted on schoolName, so a school booking a second time
+       * overwrote its own first booking - contact details and the agreed
+       * meeting slot included - while the earlier payment row survived and
+       * pointed at a booking that no longer described it. Two different schools
+       * sharing a name collided the same way. Each submission is now its own
+       * record; see the note on institutionPlanTable.
+       */
       const [institution] = await tx
         .insert(institutionPlanTable)
         .values({
@@ -180,16 +189,6 @@ export const createInsitutitionRegistration: RequestHandler = async (
           studentsCount: data.studentsCount,
           selectedDate: (data.selectedDate),
           selectedTime: data.selectedTime || null,
-        })
-        .onConflictDoUpdate({
-          target: institutionPlanTable.schoolName,
-          set: {
-            schoolName: data.schoolName,
-            contactEmail: data.contactEmail,
-            contactMobile: data.contactMobile,
-            selectedDate: (data.selectedDate),
-            selectedTime: data.selectedTime || null,
-          },
         })
         .returning();
 

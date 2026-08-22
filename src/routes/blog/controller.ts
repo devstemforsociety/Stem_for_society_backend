@@ -30,6 +30,8 @@ export const getBlogs: RequestHandler = async (req: Request, res: Response) => {
         slug: true,
         references: true,
         approvedBy: adminAuth ? true : false,
+        // Lets the moderation queue tell "rejected" from "not looked at yet".
+        rejectedAt: adminAuth ? true : false,
       },
       where(fields, operators) {
         return adminAuth ? sql`true` : operators.isNotNull(fields.approvedBy);
@@ -242,12 +244,23 @@ export const approveBlog: RequestHandler = async (
       });
       return;
     }
+    /**
+     * Approval and rejection are now distinct states.
+     *
+     * Rejecting used to set approvedBy back to null, which is exactly what an
+     * unreviewed submission looks like - so a rejected article dropped straight
+     * back into the pending queue and was reviewed again on every pass, with no
+     * record that anyone had already turned it down. Approving clears any
+     * previous rejection so a resubmission can still be accepted.
+     */
+    const isApproval = intentParsed.data.intent === "approve";
     await db
       .update(blogTable)
-      .set({
-        approvedBy:
-          intentParsed.data.intent === "approve" ? adminAuth.id : null,
-      })
+      .set(
+        isApproval
+          ? { approvedBy: adminAuth.id, rejectedAt: null, rejectedBy: null }
+          : { approvedBy: null, rejectedAt: new Date(), rejectedBy: adminAuth.id },
+      )
       .where(eq(blogTable.slug, blogSlug.data));
     res.json({
       message: `Blog ${intentParsed.data.intent === "approve" ? "approval" : "rejection"} successful!`,
