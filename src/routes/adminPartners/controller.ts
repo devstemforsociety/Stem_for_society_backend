@@ -95,21 +95,18 @@ export const getAdminPartner: RequestHandler = async (
       return;
     }
 
+    /**
+     * Same rule as the partner side: with manual payouts the only question is
+     * whether we hold details to pay to.
+     */
     let payoutEligibility: PartnerPayoutEligibilityStatus;
     if (!partner?.account) {
       payoutEligibility = "no-data";
     } else if (
-      partner?.account.rzpyContactId &&
-      !partner?.account.rzpyFundingAcctId
+      !partner.account.upiId &&
+      !partner.account.bankAccountNumber
     ) {
       payoutEligibility = "pending-details";
-    } else if (
-      (partner?.account.rzpyBankAcctId &&
-        !partner?.account.bankAccVerifiedOn) ||
-      (partner?.account.rzpyCardId && !partner?.account.cardVerifiedOn) ||
-      (partner?.account.rzpyVPAId && !partner?.account.VPAVerifiedOn)
-    ) {
-      payoutEligibility = "pending-approval";
     } else {
       payoutEligibility = "approved";
     }

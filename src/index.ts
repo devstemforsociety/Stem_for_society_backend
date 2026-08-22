@@ -1,5 +1,10 @@
+// Must stay first - Sentry patches http, express and pg as they are required,
+// so anything imported above this line goes uninstrumented.
+import "./instrument";
+
 import cookieParser from "cookie-parser";
 import "dotenv/config";
+import * as Sentry from "@sentry/node";
 import {
   authLimiters,
   corsMiddleware,
@@ -154,6 +159,13 @@ app.use("*", (req: Request, res: Response) => {
   res.status(404).json({ error: "Not found" });
 });
 
+
+/**
+ * Sentry's Express handler, registered after every route so it sees the errors
+ * they throw. It only reports; the handler below still decides what the client
+ * is told, so error responses are unchanged.
+ */
+Sentry.setupExpressErrorHandler(app);
 
 // Global error handler
 app.use((err: any, req: Request, res: Response, next: any) => {

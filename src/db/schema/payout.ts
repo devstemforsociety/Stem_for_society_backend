@@ -34,6 +34,25 @@ export const accountTable = pgTable("account", {
   rzpyFundingAcctId: varchar({ length: 40 }).unique(), // fundingAcct and bankAcc refer to same
   rzpyBankAcctId: varchar({ length: 40 }).unique(), // fundingAcct and bankAcc refer to same
   rzpyVPAId: varchar("rzpy_vpa_id", { length: 40 }).unique(),
+  /**
+   * The partner's UPI id, stored as given.
+   *
+   * Distinct from rzpyVPAId, which is a Razorpay fund-account identifier.
+   * These payouts are settled manually, so what matters is the address a human
+   * types into a UPI app - there is no gateway object behind it.
+   */
+  upiId: varchar("upi_id", { length: 256 }),
+  /**
+   * Bank details as the partner entered them.
+   *
+   * Payouts are settled by hand, so these are stored rather than exchanged for
+   * a Razorpay fund account. That makes them real financial data at rest: only
+   * ever read back on admin surfaces, never on a public or partner listing.
+   */
+  bankAccountName: varchar("bank_account_name", { length: 200 }),
+  bankName: varchar("bank_name", { length: 200 }),
+  bankIfsc: varchar("bank_ifsc", { length: 20 }),
+  bankAccountNumber: varchar("bank_account_number", { length: 40 }),
   rzpyCardId: varchar({ length: 40 }).unique(),
   bankAccVerifiedOn: timestamp({ withTimezone: true }),
   VPAVerifiedOn: timestamp("vpa_verified_on", { withTimezone: true }),

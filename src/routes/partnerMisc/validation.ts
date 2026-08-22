@@ -11,7 +11,14 @@ export const accountSchema = z.union([
   }),
   z.object({
     vpa: z.object({
-      address: z.string().min(1),
+      address: z
+        .string()
+        .trim()
+        .toLowerCase()
+        .regex(
+          /^[a-z0-9._-]{2,256}@[a-z]{2,64}$/,
+          "Enter a UPI ID in the form name@bank",
+        ),
     }),
   }),
 ]);

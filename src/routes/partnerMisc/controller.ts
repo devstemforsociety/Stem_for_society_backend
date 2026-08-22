@@ -293,6 +293,7 @@ import { razorpay } from "../../razporpay";
 import { RazorpayError } from "../../utils/types";
 import { supabase, SUPABASE_PROJECT_URL } from "../../supabase";
 import { nanoid } from "nanoid";
+import { z } from "zod";
 
 export const getHomeStatistics: RequestHandler = async (
   req: Request,
@@ -330,20 +331,20 @@ export const getHomeStatistics: RequestHandler = async (
         },
       }),
     ]);
+    /**
+     * Payouts are made by hand, so there is no gateway verification step to
+     * wait on: either we hold details someone can pay to, or we do not. The
+     * old branches keyed off Razorpay fund-account ids that are no longer
+     * created, so every partner would have read as "approved" forever.
+     */
+    const hasPayoutDestination = Boolean(
+      accounts?.upiId || accounts?.bankAccountNumber,
+    );
     let payoutEligibility: PartnerPayoutEligibilityStatus;
     if (!accounts) {
       payoutEligibility = "no-data";
-    } else if (
-      accounts.rzpyContactId &&
-      !(accounts.rzpyVPAId || accounts.rzpyCardId || accounts.rzpyBankAcctId)
-    ) {
+    } else if (!hasPayoutDestination) {
       payoutEligibility = "pending-details";
-    } else if (
-      (accounts.rzpyBankAcctId && !accounts.bankAccVerifiedOn) ||
-      (accounts.rzpyCardId && !accounts.cardVerifiedOn) ||
-      (accounts.rzpyVPAId && !accounts.VPAVerifiedOn)
-    ) {
-      payoutEligibility = "pending-approval";
     } else {
       payoutEligibility = "approved";
     }
@@ -406,6 +407,28 @@ export const getProfileDetails: RequestHandler = async (
   }
 };
 
+
+/**
+ * Turns a submitted payout destination into the columns to write.
+ *
+ * Payouts are settled by hand, so neither kind is exchanged for a Razorpay
+ * fund account: recording the details a person needs in order to make the
+ * transfer is the whole job. Only the fields for the destination that was
+ * actually submitted are returned, so saving one never blanks the other.
+ */
+function payoutColumnsFor(details: z.infer<typeof accountSchema>) {
+  if ("bank_account" in details) {
+    return {
+      bankAccountName: details.bank_account.name,
+      bankName: details.bank_account.bank_name,
+      bankIfsc: details.bank_account.ifsc,
+      bankAccountNumber: details.bank_account.account_number,
+    };
+  }
+
+  return { upiId: details.vpa.address };
+}
+
 export const saveAccountDetails: RequestHandler = async (
   req: Request,
   res: Response,
@@ -440,47 +463,22 @@ export const saveAccountDetails: RequestHandler = async (
       return;
     }
     if (!partner.account) {
-      const contact = await razorpay.customers.create({
-        contact: partner.mobile,
-        email: partner.email,
-        name: `${partner.firstName} ${partner.lastName}`,
-        fail_existing: 0,
-      });
-      let fundAcct;
-      if ("bank_account" in accountDataParsed.data) {
-        fundAcct = await razorpay.fundAccount.create({
-          account_type: "bank_account",
-          customer_id: contact.id,
-          bank_account: {
-            account_number: accountDataParsed.data.bank_account.account_number,
-            ifsc: accountDataParsed.data.bank_account.ifsc,
-            name: accountDataParsed.data.bank_account.name,
-          },
-        });
-      }
+      // No Razorpay customer is created here any more: nothing downstream
+      // uses one now that payouts are manual, and it was an external write on
+      // every first save.
       await db.insert(accountTable).values({
         partnerId: partnerAuth.id,
-        rzpyContactId: contact.id,
-        rzpyBankAcctId: fundAcct?.id,
+        ...payoutColumnsFor(accountDataParsed.data),
       });
     } else {
-      let fundAcct;
-      if ("bank_account" in accountDataParsed.data) {
-        fundAcct = await razorpay.fundAccount.create({
-          account_type: "bank_account",
-          customer_id: partner.account.rzpyContactId!,
-          bank_account: {
-            account_number: accountDataParsed.data.bank_account.account_number,
-            ifsc: accountDataParsed.data.bank_account.ifsc,
-            name: accountDataParsed.data.bank_account.name,
-          },
-        });
-      }
+      /**
+       * Only the destination that was actually submitted is written. Setting
+       * both would wipe a partner's bank details the moment they added a UPI
+       * id, leaving nobody able to pay them.
+       */
       await db
         .update(accountTable)
-        .set({
-          rzpyBankAcctId: fundAcct?.id,
-        })
+        .set(payoutColumnsFor(accountDataParsed.data))
         .where(eq(accountTable.partnerId, partnerAuth.id));
     }
     res.json({ message: "Account details submission successful!" });
