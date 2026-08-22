@@ -3,6 +3,7 @@ import { db } from "../db/connection";
 import {
   careerCounsellingTransactionTable,
   enquiryTransactionTable,
+  IndividualInstitutionTransactionTable,
   institutionTransactionTable,
   psychologyTransactionTable,
 } from "../db/schema/enquiry";
@@ -145,6 +146,31 @@ async function resolveEnquiryPayment(
       ...enquiryFields(txn),
       kind: "institution" as const,
       detail: institution.institutionPlan.schoolName,
+    };
+  }
+
+  /**
+   * Individual and institution enquiries (/enquiry/ind_inst).
+   *
+   * This branch was missing entirely, so the flow resolved to null: paying
+   * customers on the ₹3,000 individual and ₹30,000 institution registrations
+   * never received a receipt, and /email/send-general-payment answered 403 for
+   * every one of them.
+   */
+  const indInst = await db.query.IndividualInstitutionTransactionTable.findFirst(
+    {
+      where: eq(IndividualInstitutionTransactionTable.transactionId, txn.id),
+      with: { individualInstitution: true },
+    },
+  );
+  if (indInst?.individualInstitution?.email) {
+    const entry = indInst.individualInstitution;
+    return {
+      email: entry.email,
+      name: entry.name,
+      ...enquiryFields(txn),
+      kind: "institution" as const,
+      detail: entry.organizationName || entry.serviceInterest || entry.name,
     };
   }
 

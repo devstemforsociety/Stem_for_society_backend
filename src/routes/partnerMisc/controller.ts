@@ -292,6 +292,7 @@ import { createValidationError } from "../../utils/validation";
 import { razorpay } from "../../razporpay";
 import { RazorpayError } from "../../utils/types";
 import { supabase, SUPABASE_PROJECT_URL } from "../../supabase";
+import { safeContentType } from "../../utils/upload";
 import { nanoid } from "nanoid";
 import { z } from "zod";
 
@@ -363,6 +364,20 @@ export const getHomeStatistics: RequestHandler = async (
   }
 };
 
+/** Keeps the last four characters so a partner can tell which account is on file. */
+function maskTail(value: string | null): string | null {
+  if (!value) return value;
+  return value.length <= 4 ? "****" : `****${value.slice(-4)}`;
+}
+
+/** name@bank -> n***@bank, so the provider stays recognisable. */
+function maskUpi(value: string | null): string | null {
+  if (!value) return value;
+  const [name, bank] = value.split("@");
+  if (!bank) return "****";
+  return `${name.slice(0, 1)}***@${bank}`;
+}
+
 export const getProfileDetails: RequestHandler = async (
   req: Request,
   res: Response,
@@ -396,9 +411,29 @@ export const getProfileDetails: RequestHandler = async (
       });
       return;
     }
-    
+
+    /**
+     * Payout details go out masked.
+     *
+     * The whole account row was serialised here, so the full bank account
+     * number, IFSC and UPI id were sent to the browser on every profile load
+     * and sat in the React Query cache. Nothing in the partner UI reads them -
+     * it only checks the verification timestamps - so the values themselves
+     * never need to leave the server. Enough is kept for a partner to
+     * recognise which destination is on file.
+     */
+    const { account, ...rest } = partner;
+    const maskedAccount = account
+      ? {
+          ...account,
+          bankAccountNumber: maskTail(account.bankAccountNumber),
+          bankIfsc: maskTail(account.bankIfsc),
+          upiId: maskUpi(account.upiId),
+        }
+      : account;
+
     // Files are already full URLs from Supabase, no need to modify
-    res.json({ data: partner });
+    res.json({ data: { ...rest, account: maskedAccount } });
   } catch (error) {
     debugLog("🚀 ~ getProfileDetails ~ error:", error);
     res.status(500).json({
@@ -510,7 +545,6 @@ export const savePartnerProfile: RequestHandler = async (
     }
     
     const profileDataParsed = partnerProfileSchema.safeParse(req.body);
-    console.log(profileDataParsed)
     if (!profileDataParsed.success) {
       res
         .status(400)
@@ -554,7 +588,7 @@ export const savePartnerProfile: RequestHandler = async (
           logoFile.buffer,
           { 
             upsert: true,
-            contentType: logoFile.mimetype 
+            contentType: safeContentType(logoFile.mimetype) 
           },
         );
 
@@ -590,7 +624,7 @@ export const savePartnerProfile: RequestHandler = async (
           signFile.buffer,
           { 
             upsert: true,
-            contentType: signFile.mimetype 
+            contentType: safeContentType(signFile.mimetype) 
           },
         );
 

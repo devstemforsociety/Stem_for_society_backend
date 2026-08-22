@@ -1,6 +1,7 @@
 import { drizzle } from "drizzle-orm/node-postgres";
 import { DB_URL } from "../../constants";
 import * as schema from "./schema";
+import { isDevelopmentEnv } from "../utils/env";
 
 /**
  * Query logging prints every statement together with its bound parameters, so
@@ -9,7 +10,7 @@ import * as schema from "./schema";
  */
 const db = drizzle(DB_URL!, {
   schema,
-  logger: process.env.NODE_ENV !== "production",
+  logger: isDevelopmentEnv(),
   casing: "snake_case",
 });
 

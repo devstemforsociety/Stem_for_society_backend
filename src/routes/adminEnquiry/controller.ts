@@ -3,87 +3,70 @@ import { Request, RequestHandler, Response } from "express";
 import { db } from "../../db/connection";
 import { INVALID_SESSION_MSG } from "../../utils/constants";
 
+/** Individual enquiries submitted through /enquiry/ind_inst. */
 export const getIndividualTrainings: RequestHandler = async (
   req: Request,
   res: Response,
 ) => {
-  // try {
-  //   const partnerAuth = req.auth["ADMIN"];
-  //   if (!partnerAuth) {
-  //     res.status(401).json({
-  //       error: INVALID_SESSION_MSG,
-  //     });
-  //     return;
-  //   }
-  //   const psychologyTrainings = await db.query.psychologyTrainingTable.findMany(
-  //     {
-  //       with: {
-  //         transactions: true,
-  //       },
-  //       orderBy(fields, operators) {
-  //         return operators.desc(fields.createdAt);
-  //       },
-  //     },
-  //   );
-
-  //   res.json({ data: psychologyTrainings });
-  // } catch (error) {
-  //   debugLog("🚀 ~ getPsychologyTrainings ~ error:", error);
-  //   res.status(500).json({
-  //     error: "Server error in fetching psychology training details",
-  //   });
-  // }
   try {
-    const partnerAuth = req.auth["ADMIN"];
-    if (!partnerAuth) {
+    const adminAuth = req.auth["ADMIN"];
+    if (!adminAuth) {
       res.status(401).json({
         error: INVALID_SESSION_MSG,
       });
       return;
     }
-    const psychologyTrainings = await db.query.IndividualInstitutiontable.findMany({
-      where(fields,operators){
-        return operators.eq(fields.type, "individual");
-      },
-      with: {
-        transactions: {
-          with: {
-            transaction: true,
-          },
-          limit: 1,
-          orderBy(fields, operators) {
-            return operators.desc(fields.updatedAt);
+    const individualEnquiries =
+      await db.query.IndividualInstitutiontable.findMany({
+        where(fields, operators) {
+          return operators.eq(fields.type, "individual");
+        },
+        with: {
+          transactions: {
+            with: {
+              transaction: true,
+            },
+            limit: 1,
+            orderBy(fields, operators) {
+              return operators.desc(fields.updatedAt);
+            },
           },
         },
-      },
-      orderBy(fields, operators) {
-        return operators.desc(fields.createdAt);
-      },
-    });
-    debugLog("🚀 ~ getPsychologyTrainings ~ psychologyTrainings:", psychologyTrainings)  ;
-    res.json({ data: psychologyTrainings });
+        orderBy(fields, operators) {
+          return operators.desc(fields.createdAt);
+        },
+      });
+    res.json({ data: individualEnquiries });
   } catch (error) {
-    debugLog("🚀 ~ getPsychologyTrainings ~ error:", error);
+    debugLog("🚀 ~ getIndividualTrainings ~ error:", error);
     res.status(500).json({
-      error: "Server error in fetching psychology training details",
+      error: "Server error in fetching individual enquiry details",
     });
   }
 };
 
-export const getCareerCounselling: RequestHandler = async (
+/**
+ * Paid institution plans (Basics / Premium) taken through /enquiry/plans.
+ *
+ * Distinct from getInstitutionRegistrations, which lists institution *enquiries*
+ * from IndividualInstitutiontable. Nothing read institutionPlanTable at all, so
+ * these purchases were invisible to admins.
+ */
+export const getInstitutionPlanBookings: RequestHandler = async (
   req: Request,
   res: Response,
 ) => {
   try {
-    const partnerAuth = req.auth["ADMIN"];
-    if (!partnerAuth) {
+    const adminAuth = req.auth["ADMIN"];
+    if (!adminAuth) {
       res.status(401).json({
         error: INVALID_SESSION_MSG,
       });
       return;
     }
-    const careerCounselling = await db.query.careerCounsellingTable.findMany({
+    const planBookings = await db.query.institutionPlanTable.findMany({
       with: {
+        address: true,
         transactions: {
           with: {
             transaction: true,
@@ -93,16 +76,13 @@ export const getCareerCounselling: RequestHandler = async (
           },
         },
       },
-      orderBy(fields, operators) {
-        return operators.desc(fields.createdAt);
-      },
     });
 
-    res.json({ data: careerCounselling });
+    res.json({ data: planBookings });
   } catch (error) {
-    debugLog("🚀 ~ getCareerCounselling ~ error:", error);
+    debugLog("🚀 ~ getInstitutionPlanBookings ~ error:", error);
     res.status(500).json({
-      error: "Server error in fetching career counselling details",
+      error: "Server error in fetching institution plan bookings",
     });
   }
 };
@@ -165,18 +145,11 @@ export const getInstitutionRegistrations: RequestHandler = async (
           return operators.desc(fields.createdAt);
         },
       });
-insitutionRegistrations.forEach(inst => {
-  console.log("Institution:", inst.name);
-  console.log("Transactions:", JSON.stringify(inst.transactions, null, 2));
-});
-
-
-
     res.json({ data: insitutionRegistrations });
   } catch (error) {
     debugLog("🚀 ~ getInstitutionRegistrations ~ error:", error);
     res.status(500).json({
-      error: "Server error in fetching campus ambassador application details",
+      error: "Server error in fetching institution registration details",
     });
   }
 };

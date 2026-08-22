@@ -51,110 +51,11 @@ export const institutionPlanSchema = z.object({
     .string()
     .min(2, "Invalid state")
     .max(100, "Maximum state name limit is 100 characters only"),
-  pincode: z.string().regex(/[0-9]{6}/g, "Invalid pincode"),
+  pincode: z.string().regex(/^[0-9]{6}$/, "Invalid pincode"),
   plan: z.enum(["Basics", "Premium"]),
   selectedDate: z.string().min(2, "Select a valid date"),
   selectedTime: z.string().min(2, "Select a valid time"),
 });
-
-export const psychologyTrainingSchema = z.object({
-  firstName: z
-    .string({ required_error: "First name is required!" })
-    .min(3, "First name must be at least 3 characters")
-    .max(100, "First name is too long"),
-  lastName: z
-    .string()
-    .min(5, "Last name is too short")
-    .max(100, "Last name is too long")
-    .nullish()
-    .or(z.literal("")),
-  mobile: z
-    .string({ required_error: "Mobile is required!" })
-    .regex(/^[6789]\d{9}$/, "Mobile number is invalid"),
-  email: z.string().trim().toLowerCase().email("Invalid email"),
-  city: z
-    .string()
-    .min(2, "Invalid city")
-    .max(100, "Maximum city name limit is 100 characters"),
-  state: z
-    .string()
-    .min(2, "Invalid state")
-    .max(100, "Maximum state name limit is 100 characters only"),
-  idCard: z
-    .instanceof(File, { message: "Image required!" })
-    .refine((file) => file.size <= 5 * 1024 * 1024, {
-      message: "Cover image size must be less than 5MB",
-    })
-    .refine((file) => file.type.includes("image/"), {
-      message: "Not valid image format",
-    })
-    .nullish(),
-  selectedDate: z.string().min(2, "Select a valid date"),
-  selectedTime: z.string().min(2, "Select a valid time"),
-});
-
-export const careerCounsellingSchema = z
-  .object({
-    firstName: z
-      .string({ required_error: "First name is required!" })
-      .min(3, "First name must be at least 3 characters")
-      .max(100, "First name is too long"),
-    lastName: z
-      .string()
-      .min(5, "Last name is too short") 
-      .max(100, "Last name is too long"),
-    institutionName: z
-      .string()
-      .min(2, "Last name is too short")
-      .max(100, "Last name is too long")
-      .nullish()
-      .or(z.literal("")),
-    // The discount is granted on this file, not on a self-declared id string.
-    idCard: z
-      .instanceof(File, { message: "Image required!" })
-      .refine((file) => file.size <= 5 * 1024 * 1024, {
-        message: "ID card size must be less than 5MB",
-      })
-      .refine((file) => file.type.includes("image/"), {
-        message: "Not valid image format",
-      })
-      .nullish(),
-    mobile: z
-      .string({ required_error: "Mobile is required!" })
-      .regex(/^[6789]\d{9}$/, "Mobile number is invalid"),
-    email: z.string().trim().toLowerCase().email("Invalid email"),
-    service: z
-      .enum([
-        "Career choice",
-        "CV/Resume prep",
-        "Research Proposal editing",
-        "LOR/SOP editing & preparation",
-        "Shortlisting Abroad PhD",
-        "PG/PhD abroad application guidance",
-        "Post Doc Application",
-        "Industry jobs",
-      ])
-      .nullish(),
-    plan: z.enum(["Basics", "Premium"]).nullish(),
-    selectedDate: z.string().min(2, "Select a valid date"),
-    selectedTime: z.string().min(2, "Select a valid time"),
-  })
-  .superRefine((fields, ctx) => {
-    if (!fields.plan && !fields.service) {
-      ctx.addIssue({
-        message: "Either 'plan' or 'service' must be provided.",
-        code: "custom",
-        path: ["service", "plan"],
-      });
-    }
-    if (fields.plan && fields.service) {
-      ctx.addIssue({
-        message: "'plan' and 'service' cannot both be provided.",
-        code: "custom",
-        path: ["service", "plan"],
-      });
-    }
-  });
 
 export const caRegistrationSchema = z.object({
   firstName: z
@@ -163,7 +64,6 @@ export const caRegistrationSchema = z.object({
     .max(100, "First name is too long"),
   lastName: z
     .string()
-    .min(5, "Last name is too short")
     .max(100, "Last name is too long")
     .nullish()
     .or(z.literal("")),

@@ -4,8 +4,6 @@ import {
     sendOTPReset, 
     verifyOTP, 
     sendCourseRegistrationEmail,
-    sendMentalWellbeingEmail,
-    sendCareerCounselingEmail,
     sendInstitutionPartnershipEmail,
     sendGeneralPaymentEmail
 } from "./controller";
@@ -19,8 +17,6 @@ emailRouter.post("/resetOTP", sendOTPReset);
 
 // Payment Success Email Routes
 emailRouter.post("/send-course-registration", sendCourseRegistrationEmail);
-emailRouter.post("/send-mental-wellbeing", sendMentalWellbeingEmail);
-emailRouter.post("/send-career-counseling", sendCareerCounselingEmail);
 emailRouter.post("/send-institution-booking", sendInstitutionPartnershipEmail);
 emailRouter.post("/send-general-payment", sendGeneralPaymentEmail);
 

@@ -2,6 +2,7 @@ import cors, { CorsOptions } from "cors";
 import { Request, RequestHandler } from "express";
 import rateLimit, { ipKeyGenerator } from "express-rate-limit";
 import helmet from "helmet";
+import { isProductionEnv } from "./utils/env";
 
 /**
  * Security middleware: headers, origin control and rate limiting.
@@ -18,12 +19,30 @@ import helmet from "helmet";
  *   ALLOWED_ORIGINS=https://stemforsociety.com,https://www.stemforsociety.com
  *
  * Localhost dev servers are always allowed outside production.
+ *
+ * The site's own domains are used when ALLOWED_ORIGINS is not set.
+ *
+ * These are a floor, not a replacement for the variable: the previous fallback
+ * was `origin: true`, which reflects whatever Origin the caller sends and -
+ * combined with credentials - let any website on the internet make
+ * authenticated calls with a signed-in visitor's token. Failing closed onto the
+ * real domains keeps the live site working while removing that.
+ *
+ * Add environments (preview URLs, a staging host) through ALLOWED_ORIGINS
+ * rather than by editing this list.
  */
+const DEFAULT_ALLOWED_ORIGINS = [
+  "https://stemforsociety.com",
+  "https://www.stemforsociety.com",
+];
+
 function allowedOrigins(): string[] {
-  return (process.env.ALLOWED_ORIGINS ?? "")
+  const configured = (process.env.ALLOWED_ORIGINS ?? "")
     .split(",")
     .map((origin) => origin.trim())
     .filter(Boolean);
+
+  return configured.length > 0 ? configured : DEFAULT_ALLOWED_ORIGINS;
 }
 
 const LOCALHOST = /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/;
@@ -33,32 +52,14 @@ export const CORS_DENIED = "CORS_ORIGIN_DENIED";
 
 export function buildCorsOptions(): CorsOptions {
   const allowlist = allowedOrigins();
-  const isProduction = process.env.NODE_ENV === "production";
+  const isProduction = isProductionEnv();
 
-  if (allowlist.length === 0) {
-    // Falling back to permissive rather than breaking a live deployment that
-    // has not set the variable yet - but say so loudly, because until it is
-    // set this protection does nothing.
-    console.error(
-      "[security] ALLOWED_ORIGINS is not set - the API currently accepts requests from ANY origin. " +
-        "Set it to your frontend domains and redeploy.",
+  if (!process.env.ALLOWED_ORIGINS) {
+    console.warn(
+      "[security] ALLOWED_ORIGINS is not set - falling back to the built-in " +
+        `allowlist (${DEFAULT_ALLOWED_ORIGINS.join(", ")}). Set it explicitly ` +
+        "if the frontend is served from any other domain.",
     );
-    return {
-      origin: true,
-      credentials: true,
-      methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
-      allowedHeaders: [
-        "Content-Type",
-        "Authorization",
-        "Cookie",
-        "X-Correlation-Id",
-        // Also needed here: this permissive branch is what runs whenever
-        // ALLOWED_ORIGINS is unset, which is the case in production today.
-        "sentry-trace",
-        "baggage",
-      ],
-      optionsSuccessStatus: 200,
-    };
   }
 
   console.log(`[security] CORS allowlist: ${allowlist.join(", ")}`);

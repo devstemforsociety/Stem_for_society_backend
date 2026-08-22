@@ -6,8 +6,7 @@ import {
   saveAccountDetails,
   savePartnerProfile,
 } from "./controller";
-import multer from 'multer'
-const upload = multer({storage : multer.memoryStorage()})
+import { profileUpload } from "../../utils/upload";
 
 const partnerMiscRouter = Router();
 
@@ -21,7 +20,7 @@ partnerMiscRouter.post(
 partnerMiscRouter.post(
   "/profile",
   requireAuthToken("PARTNER"),
-  upload.fields([
+  profileUpload.fields([
     {name :'logo', maxCount:1},
     {name: 'digitalSign',maxCount:1}
   ]),

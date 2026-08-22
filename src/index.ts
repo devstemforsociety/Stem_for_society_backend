@@ -18,6 +18,7 @@ import {
 } from "./security";
 import express, { Application, Request, Response } from "express";
 import { db } from "./db/connection";
+import { isDevelopmentEnv } from "./utils/env";
 import adminAuthRouter from "./routes/adminAuth/route";
 import adminPartnersRouter from "./routes/adminPartners/route";
 import adminStudentsRouter from "./routes/adminStudents/route";
@@ -29,7 +30,6 @@ import partnerMiscRouter from "./routes/partnerMisc/route";
 import partnerStudentsRouter from "./routes/partnerStudents/route";
 import paymentRouter from "./routes/payments/route";
 import studentTrainingRouter from "./routes/studentTraining/route";
-import testRouter from "./routes/test/route";
 import trainingRouter from "./routes/training/route";
 import homeRouter from "./routes/home/route";
 import emailRouter from "./routes/email/route"
@@ -87,7 +87,7 @@ app.get("/health", async (req: Request, res: Response) => {
       environment: process.env.NODE_ENV,
       timestamp: new Date().toISOString(),
       database: "disconnected",
-      error: process.env.NODE_ENV === 'development' ? error : "Database connection failed"
+      error: isDevelopmentEnv() ? error : "Database connection failed"
     });
   }
 });
@@ -118,8 +118,6 @@ app.use("/client-errors", clientErrorLimiter);
 app.use(
   [
     "/email/send-course-registration",
-    "/email/send-mental-wellbeing",
-    "/email/send-career-counseling",
     "/email/send-institution-booking",
     "/email/send-general-payment",
   ],
@@ -149,8 +147,6 @@ app.use("/home", homeRouter);
 app.use("/client-errors", clientErrorsRouter);
 
 app.use("/email", emailRouter);
-
-app.use("/testing", testRouter);
 
 // Unmatched routes. This previously logged and then returned without sending
 // anything, so every 404 hung the client until it timed out and held a
@@ -200,7 +196,10 @@ app.use((err: any, req: Request, res: Response, next: any) => {
   console.error('Unhandled error:', err);
   res.status(500).json({
     error: 'Internal server error',
-    message: process.env.NODE_ENV === 'development' ? err.message : 'Something went wrong'
+    // Only a development run may see the underlying message; anything else
+    // (including an unset NODE_ENV, which is the deployed case) gets the
+    // generic text, so stack detail never reaches a client.
+    message: isDevelopmentEnv() ? err.message : 'Something went wrong'
   });
 });
 

@@ -24,6 +24,7 @@ import { authRoleEnum, createValidationError } from "../../utils/validation";
 import { registerUserSchema, signInUserSchema } from "./validation";
 import { razorpay } from "../../razporpay";
 import { supabase, SUPABASE_PROJECT_URL } from "../../supabase";
+import { safeContentType } from "../../utils/upload";
 import { nanoid } from "nanoid";
 
 export const registerUser: RequestHandler = async (
@@ -35,9 +36,30 @@ export const registerUser: RequestHandler = async (
     const rawData = req.body;
 
     // Parse form data and files
+    /**
+     * The topics arrive as a JSON string inside multipart form data. An
+     * unguarded JSON.parse here threw on malformed input and was caught as an
+     * opaque 500, so a bad field looked like a server fault instead of a
+     * correctable mistake.
+     */
+    let trainingTopics: unknown = [];
+    if (rawData.trainingTopics) {
+      try {
+        trainingTopics = JSON.parse(rawData.trainingTopics);
+      } catch {
+        res.status(400).json({
+          error: "Validation Error",
+          errors: [
+            { path: "trainingTopics", message: "Training topics are not in a readable format." },
+          ],
+        });
+        return;
+      }
+    }
+
     const registerUserValidation = registerUserSchema.safeParse({
       ...rawData,
-      trainingTopics: rawData.trainingTopics ? JSON.parse(rawData.trainingTopics) : [],
+      trainingTopics,
       logo: files?.logo?.[0] 
         ? new File([new Uint8Array(files.logo[0].buffer)], files.logo[0].originalname, {
             type: files.logo[0].mimetype,
@@ -78,7 +100,7 @@ export const registerUser: RequestHandler = async (
           logoFile.buffer,
           { 
             upsert: true,
-            contentType: logoFile.mimetype 
+            contentType: safeContentType(logoFile.mimetype) 
           },
         );
 
@@ -104,7 +126,7 @@ export const registerUser: RequestHandler = async (
           signFile.buffer,
           { 
             upsert: true,
-            contentType: signFile.mimetype 
+            contentType: safeContentType(signFile.mimetype) 
           },
         );
 
@@ -222,8 +244,11 @@ export const registerUser: RequestHandler = async (
         return;
       }
     }
+    // The error object was concatenated into the response, which shipped
+    // driver internals (and on a constraint violation, the offending values)
+    // straight to the caller. It is logged above; the client gets the fact.
     res.status(500).json({
-      error: "Server error in registering instructor: " + error,
+      error: "Server error in registering instructor",
     });
   }
 };

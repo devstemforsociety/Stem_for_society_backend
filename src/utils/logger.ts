@@ -1,4 +1,6 @@
-const isProduction = process.env.NODE_ENV === "production";
+import { isProductionEnv } from "./env";
+
+const isProduction = isProductionEnv();
 
 /**
  * Developer tracing. Silent in production.

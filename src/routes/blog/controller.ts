@@ -65,8 +65,14 @@ export const getBlog: RequestHandler = async (req: Request, res: Response) => {
             name: true,
             designation: true,
             linkedin: true,
-            email: true,
-            mobile: true,
+            /**
+             * Contact details are for moderators, not readers. This route is
+             * public (requireAuthToken("ADMIN", false)), so every published
+             * article was handing out the author's personal email address and
+             * phone number to anyone who loaded the page.
+             */
+            email: adminAuth ? true : false,
+            mobile: adminAuth ? true : false,
           },
         },
       },

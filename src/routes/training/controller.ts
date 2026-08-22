@@ -646,11 +646,8 @@ export const generateCertificates: RequestHandler = async (
           logo : trainingEnrolments.instructor?.logo || null,
         };
         
-        console.log(`🚀 Generating certificate for: ${certificateData.name}`);
-        console.log(`🚀 Course dates: ${certificateData.startDate} to ${certificateData.endDate}`);
-        console.log(`🚀 Digital sign URL: ${certificateData.digitalSignUrl}`);
-        console.log(`🚀 Logo URL: ${certificateData.logo}`);
-        
+        debugLog(`[cert]: generating for enrolment ${enr.id}`);
+
         // Call your existing generateCertificate function directly
         const success = await generateCertificate(certificateData);
         

@@ -1,5 +1,5 @@
 import { debugLog } from "../../utils/logger";
-import { sql } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { Request, RequestHandler, Response } from "express";
 import { z } from "zod";
 import { db } from "../../db/connection";
@@ -309,11 +309,17 @@ export const getTraining: RequestHandler = async (
           ? true
           : false
         : false,
-      // Only include link if user is enrolled
-      ...( training.link && { link: training.link }),
-      // Only include lessons if user is enrolled, and filter by date
-      lessons:  (training.lessons)
-       
+      /**
+       * Enrolled callers only.
+       *
+       * `isEnrolled` was computed here but never consulted, so the joining
+       * link and the lesson bodies went out to every caller - and this route
+       * is deliberately reachable without a token
+       * (requireAuthToken("STUDENT", false)), which meant the meeting link for
+       * a paid course was readable by anyone who knew the training id.
+       */
+      ...(isEnrolled && training.link ? { link: training.link } : {}),
+      lessons: isEnrolled ? training.lessons : [],
     };
     debugLog("🚀 ~ getTraining ~ responseData:", responseData);
     res.json({
@@ -352,6 +358,56 @@ export const captureFeedback: RequestHandler = async (
       res.status(400).json(createValidationError(feedbackParsed));
       return;
     }
+
+    /**
+     * Only students who actually took the course may rate it.
+     *
+     * Enrolment was never checked here, so any signed-in account could post
+     * ratings for any training, as many times as it liked. That is not only
+     * review inflation: generateCertificates decides who is certifiable by
+     * looking for a row in this exact table, so an unenrolled caller could
+     * satisfy the feedback gate on someone else's course.
+     */
+    const enrolment = await db.query.trainingEnrolmentTable.findFirst({
+      where: (fields, operators) =>
+        operators.and(
+          operators.eq(fields.trainingId, trainingId.data),
+          operators.eq(fields.userId, studentAuth.id),
+        ),
+      columns: { id: true },
+    });
+
+    if (!enrolment) {
+      res.status(403).json({
+        error: "Only students enrolled in this training can leave feedback.",
+      });
+      return;
+    }
+
+    // One rating per student per training: a second submission updates the
+    // first rather than stacking another row.
+    const existingRating = await db.query.trainingRatingTable.findFirst({
+      where: (fields, operators) =>
+        operators.and(
+          operators.eq(fields.trainingId, trainingId.data),
+          operators.eq(fields.userId, studentAuth.id),
+        ),
+      columns: { id: true },
+    });
+
+    if (existingRating) {
+      await db
+        .update(trainingRatingTable)
+        .set({
+          rating: feedbackParsed.data.rating,
+          feedback: feedbackParsed.data.feedback,
+          completedOn: new Date(),
+        })
+        .where(eq(trainingRatingTable.id, existingRating.id));
+      res.json({ message: "Feedback was updated successfully!" });
+      return;
+    }
+
     await db.insert(trainingRatingTable).values({
       rating: feedbackParsed.data.rating,
       feedback: feedbackParsed.data.feedback,

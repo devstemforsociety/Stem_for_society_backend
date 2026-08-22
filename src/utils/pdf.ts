@@ -116,7 +116,6 @@ export async function generateCertificate(data: PDFGenerationType) {
     }
 
     let instructor = data.instructor;
-    let content = `Completed a structured ${data.courseName} online course through the collaborative 'STEM for Society' program, delivered by ${instructor}.`;
 
     const fontSize = 12;
     const y = 300;
@@ -204,7 +203,6 @@ export async function generateCertificate(data: PDFGenerationType) {
       })),
     );
     
-    console.log(wordObjects, keyObjects);
     drawStyledText(xStart, y, [
       ...wordObjects[0], //Completed a structured
       ...keyObjects[0],

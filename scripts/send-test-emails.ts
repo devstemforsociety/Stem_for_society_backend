@@ -4,8 +4,6 @@ import {
   sendOTP,
   sendOTPReset,
   sendCourseRegistrationEmail,
-  sendMentalWellbeingEmail,
-  sendCareerCounselingEmail,
   sendInstitutionPartnershipEmail,
   sendGeneralPaymentEmail,
 } from "../src/routes/email/controller";
@@ -94,32 +92,6 @@ async function main() {
         courseDuration: "6 weeks",
         startDate: inDays(7),
         phoneNumber: "9999999999",
-      },
-    },
-    {
-      name: "Mental Wellbeing",
-      handler: sendMentalWellbeingEmail,
-      body: {
-        userEmail: email,
-        userName: name,
-        sessionType: "Mindfulness Starter",
-        amount: "999",
-        currency: "INR",
-        paymentId: "pay_test_002",
-        sessionDate: inDays(3),
-      },
-    },
-    {
-      name: "Career Counseling",
-      handler: sendCareerCounselingEmail,
-      body: {
-        userEmail: email,
-        userName: name,
-        counselingType: "Career Switch",
-        amount: "1299",
-        currency: "INR",
-        paymentId: "pay_test_003",
-        sessionDate: inDays(5),
       },
     },
     {

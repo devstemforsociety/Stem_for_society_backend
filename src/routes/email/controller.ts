@@ -382,6 +382,17 @@ export const sendOTP: RequestHandler = async (req: Request, res: Response) => {
     }
 };
 
+/**
+ * One reply for both outcomes.
+ *
+ * The two branches below used to return different text - "Password reset OTP
+ * sent successfully" when the account existed and a softer line when it did
+ * not - so the very enumeration the existence check was added to prevent was
+ * readable straight off the response body.
+ */
+const RESET_OTP_SENT_MSG =
+    "If that address has an account, a reset code is on its way.";
+
 export const sendOTPReset: RequestHandler = async (req: Request, res: Response) => {
     try {
         // Stored and matched lowercase so an OTP cannot be stranded on a
@@ -406,8 +417,8 @@ export const sendOTPReset: RequestHandler = async (req: Request, res: Response) 
             .where(emailEquals(userTable.email, email));
         if (isexist.length === 0) {
             res.json({
-                message: "If that address has an account, a reset code is on its way.",
-                data: { email },
+                message: RESET_OTP_SENT_MSG,
+                data: { email, expiresAt: Math.floor(Date.now() / 1000) + 600 },
             });
             return;
         }
@@ -465,7 +476,7 @@ export const sendOTPReset: RequestHandler = async (req: Request, res: Response) 
         
         // See above: the OTP must never travel back to the caller (SFS-03).
         res.json({
-            message: "Password reset OTP sent successfully",
+            message: RESET_OTP_SENT_MSG,
             data: { email: otpRecord.email, expiresAt: otpRecord.expiresAt }
         });
         
@@ -740,150 +751,6 @@ export const sendCourseRegistrationEmail: RequestHandler = async (req: Request, 
     } catch (error) {
         console.error("Error sending course registration email:", error);
         res.status(500).json({ error: "Failed to send course registration email" });
-    }
-};
-
-// Mental Wellbeing Session Email
-export const sendMentalWellbeingEmail: RequestHandler = async (req: Request, res: Response) => {
-    try {
-        const {
-            userEmail,
-            userName,
-            sessionType,
-            amount,
-            currency,
-            paymentId,
-            sessionDate,
-        } = req.body;
-
-        if (!userEmail || !sessionType || !amount || !paymentId) {
-            res.status(400).json({ error: "Required fields: userEmail, sessionType, amount, paymentId" });
-            return;
-        }
-
-        // The caller may name any address; only the one recorded against a
-        // successful payment is actually used. See resolveVerifiedPayment.
-        const verified = await resolveVerifiedPayment(paymentId);
-        if (!verified) {
-            res.status(403).json({
-                error: "No successful payment matches this request.",
-            });
-            return;
-        }
-
-        // The webhook sends this too. Whoever claims first sends; the other
-        // reports success without emailing the customer twice.
-        if (!(await claimReceipt(verified))) {
-            res.json({
-                message: "Receipt already sent",
-                recipient: verified.email,
-            });
-            return;
-        }
-
-        const mailOptions = generateMentalWellbeingEmail({
-            userEmail: verified.email,
-            userName: verified.name || userName,
-            amount,
-            currency: currency || 'INR',
-            paymentId,
-            transactionDate: new Date(),
-            additionalDetails: {
-                session_type: sessionType,
-                session_date: sessionDate
-            }
-        });
-
-        try {
-            await transporter.sendMail(mailOptions);
-        } catch (sendError) {
-            // Hand the claim back so the webhook can still deliver it.
-            await releaseReceipt(verified);
-            throw sendError;
-        }
-        
-        res.json({
-            message: "Mental wellbeing email sent successfully",
-            recipient: verified.email
-        });
-        
-        console.log(`Mental wellbeing email sent to ${verified.email}`);
-        
-    } catch (error) {
-        console.error("Error sending mental wellbeing email:", error);
-        res.status(500).json({ error: "Failed to send mental wellbeing email" });
-    }
-};
-
-// Career Counseling Email
-export const sendCareerCounselingEmail: RequestHandler = async (req: Request, res: Response) => {
-    try {
-        const {
-            userEmail,
-            userName,
-            counselingType,
-            amount,
-            currency,
-            paymentId,
-            sessionDate,
-        } = req.body;
-
-        if (!userEmail || !counselingType || !amount || !paymentId) {
-            res.status(400).json({ error: "Required fields: userEmail, counselingType, amount, paymentId" });
-            return;
-        }
-
-        // The caller may name any address; only the one recorded against a
-        // successful payment is actually used. See resolveVerifiedPayment.
-        const verified = await resolveVerifiedPayment(paymentId);
-        if (!verified) {
-            res.status(403).json({
-                error: "No successful payment matches this request.",
-            });
-            return;
-        }
-
-        // The webhook sends this too. Whoever claims first sends; the other
-        // reports success without emailing the customer twice.
-        if (!(await claimReceipt(verified))) {
-            res.json({
-                message: "Receipt already sent",
-                recipient: verified.email,
-            });
-            return;
-        }
-
-        const mailOptions = generateCareerCounselingEmail({
-            userEmail: verified.email,
-            userName: verified.name || userName,
-            amount,
-            currency: currency || 'INR',
-            paymentId,
-            transactionDate: new Date(),
-            additionalDetails: {
-                counseling_type: counselingType,
-                session_date: sessionDate
-            }
-        });
-
-        try {
-            await transporter.sendMail(mailOptions);
-        } catch (sendError) {
-            // Hand the claim back so the webhook can still deliver it.
-            await releaseReceipt(verified);
-            throw sendError;
-        }
-        
-        res.json({
-            message: "Career counseling email sent successfully",
-            recipient: verified.email
-        });
-        
-        console.log(`Career counseling email sent to ${verified.email}`);
-        
-    } catch (error) {
-        console.error("Error sending career counseling email:", error);
-        res.status(500).json({ error: "Failed to send career counseling email" });
     }
 };
 
@@ -1420,28 +1287,42 @@ function scheduleCourseReminders({ userEmail, userName, courseName, startISO }: 
         { whenLabel: 'in 1 hour', msBefore: 60 * 60 * 1000 }
     ];
 
-    for (const r of reminders) {
-        const sendAt = startTs - r.msBefore;
-        const delay = sendAt - now;
+    const MAX_TIMEOUT = 0x7FFFFFFF; // ~24.8 days, the setTimeout ceiling
+
+    /**
+     * Arms one reminder.
+     *
+     * Each reminder re-arms only itself past the setTimeout ceiling. The
+     * previous version called scheduleCourseReminders() again from inside the
+     * loop, so for a course more than ~25 days out *both* reminders re-entered
+     * the whole function - two timers became four, four became eight, and the
+     * student received a doubling pile of duplicate emails.
+     */
+    const arm = (whenLabel: string, sendAt: number) => {
+        const send = () => {
+            const mail = generateCourseReminderEmail({ userEmail, userName, courseName, startISO, whenLabel });
+            transporter
+                .sendMail(mail)
+                .then(() => console.log(`Sent ${whenLabel} reminder to ${userEmail}`))
+                .catch((err: any) => console.error('Reminder send error:', err));
+        };
+
+        const delay = sendAt - Date.now();
         if (delay <= 0) {
-            // time passed — send immediately
-            const mail = generateCourseReminderEmail({ userEmail, userName, courseName, startISO, whenLabel: r.whenLabel });
-                transporter.sendMail(mail).then(() => console.log(`Sent immediate ${r.whenLabel} reminder to ${userEmail}`)).catch((err: any) => console.error('Reminder send error:', err));
-        } else if (delay > 0) {
-            // Protect against setTimeout limits (~24.8 days) and extremely long delays
-            const MAX_TIMEOUT = 0x7FFFFFFF; // ~24.8 days
-            if (delay > MAX_TIMEOUT) {
-                // If too far in future, schedule a shorter interim timer to re-evaluate later
-                // Here we schedule a timer for MAX_TIMEOUT and then recursively call scheduleCourseReminders again
-                setTimeout(() => scheduleCourseReminders({ userEmail, userName, courseName, startISO }), MAX_TIMEOUT);
-            } else {
-                setTimeout(() => {
-                    const mail = generateCourseReminderEmail({ userEmail, userName, courseName, startISO, whenLabel: r.whenLabel });
-                    transporter.sendMail(mail).then(() => console.log(`Sent ${r.whenLabel} reminder to ${userEmail}`)).catch((err: any) => console.error('Reminder send error:', err));
-                }, delay);
-                console.log(`Scheduled ${r.whenLabel} reminder for ${userEmail} (in ${Math.round(delay / 1000)}s)`);
-            }
+            send();
+            return;
         }
+        if (delay > MAX_TIMEOUT) {
+            // Re-arm just this reminder once the ceiling is closer.
+            setTimeout(() => arm(whenLabel, sendAt), MAX_TIMEOUT).unref?.();
+            return;
+        }
+        setTimeout(send, delay).unref?.();
+        console.log(`Scheduled ${whenLabel} reminder for ${userEmail} (in ${Math.round(delay / 1000)}s)`);
+    };
+
+    for (const r of reminders) {
+        arm(r.whenLabel, startTs - r.msBefore);
     }
 }
 /**

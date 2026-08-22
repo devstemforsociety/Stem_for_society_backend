@@ -22,7 +22,6 @@ export const createPayment: RequestHandler = async (
   req: Request,
   res: Response,
 ) => {
-  console.log("Running Create")
   try {
     const studentAuth = req.auth?.["STUDENT"];
     if (!studentAuth) {
@@ -291,27 +290,55 @@ export const verifyPayment: RequestHandler = async (
         return;
       }
 
-      const transactionAlready = await db.query.transactionTable.findFirst({
-        where(fields, ops) {
-          return ops.eq(fields.idempotencyId, rzpyIdempotencyId);
-        },
-      });
+      /**
+       * Replay protection.
+       *
+       * Both of these checks only ever consulted transactionTable, which holds
+       * course purchases. Every enquiry payment (career, psychology,
+       * institution, individual) lives in enquiryTransactionTable, so for those
+       * flows neither guard could ever match: Razorpay's webhook retries were
+       * reprocessed from scratch, and a payment the browser had already settled
+       * could still be walked back to "failed".
+       */
+      const [courseAlready, enquiryAlready] = await Promise.all([
+        db.query.transactionTable.findFirst({
+          where(fields, ops) {
+            return ops.eq(fields.idempotencyId, rzpyIdempotencyId);
+          },
+        }),
+        db.query.enquiryTransactionTable.findFirst({
+          where(fields, ops) {
+            return ops.eq(fields.idempotencyId, rzpyIdempotencyId);
+          },
+        }),
+      ]);
 
-      if (transactionAlready?.id) {
+      if (courseAlready?.id || enquiryAlready?.id) {
         errorMessage = "WH already received";
         debugLog("[WH]: already:", errorMessage);
         return;
       }
 
-      // CRITICAL FIX: If transaction is already "success" in DB (set by verifyClientPayment
-      // before this webhook arrived), do NOT overwrite it with failed.
-      // This is the root cause of live GPay payments showing as failed.
-      const existingTxn = await db.query.transactionTable.findFirst({
-        where(fields, ops) {
-          return ops.eq(fields.orderId, rzpyOrderId);
-        },
-      });
-      if (existingTxn?.status === "success") {
+      // If the transaction is already "success" in the database (set by
+      // verifyClientPayment / verifyClientEnquiryPayment before this webhook
+      // arrived), do NOT overwrite it with failed. This is the root cause of
+      // live GPay payments showing as failed.
+      const [existingTxn, existingEnquiryTxn] = await Promise.all([
+        db.query.transactionTable.findFirst({
+          where(fields, ops) {
+            return ops.eq(fields.orderId, rzpyOrderId);
+          },
+        }),
+        db.query.enquiryTransactionTable.findFirst({
+          where(fields, ops) {
+            return ops.eq(fields.orderId, rzpyOrderId);
+          },
+        }),
+      ]);
+      if (
+        existingTxn?.status === "success" ||
+        existingEnquiryTxn?.status === "success"
+      ) {
         debugLog("[WH]: Transaction already success in DB — skipping webhook overwrite");
         return;
       }
@@ -340,10 +367,17 @@ export const verifyPayment: RequestHandler = async (
             captureError?.message ||
             captureError
           ).toLowerCase();
+          /**
+           * Only a genuine "this payment is already captured" counts as
+           * success. The previous test also accepted `statusCode === 400` and a
+           * bare "captured" substring, so *every* rejected capture - wrong
+           * amount, currency mismatch, a payment that actually failed - was
+           * recorded as money received. Razorpay phrases the real case as
+           * "This payment has already been captured".
+           */
           const alreadyCaptured =
-            errMsg.includes("already") ||
-            errMsg.includes("captured") ||
-            captureError?.statusCode === 400;
+            errMsg.includes("already been captured") ||
+            errMsg.includes("already captured");
           if (alreadyCaptured) {
             debugLog("[WH]: Payment already captured (auto-capture), treating as success");
             paymentStatus = "captured";
@@ -384,7 +418,14 @@ export const verifyPayment: RequestHandler = async (
                 eq(enquiryTransactionTable.orderId, rzpyOrderId),
               ),
             );
-        } else if (referenceId.includes("CAREER_")) {
+        } else if (
+          referenceId.includes("CAREER_") ||
+          // Individual enquiries were missing from this branch (they are
+          // present in the two others), so a failed IND_ payment fell through
+          // to transactionTable, matched nothing, and left the enquiry stuck
+          // on "pending" forever.
+          referenceId.includes("IND_")
+        ) {
           await db
             .update(enquiryTransactionTable)
             .set({
@@ -509,8 +550,9 @@ export const verifyPayment: RequestHandler = async (
 
     const rzpyIdempotency = req.headers["x-razorpay-event-id"];
     const rzpyWHSignature = req.headers["x-razorpay-signature"];
-    console.log(`Payload for Event ID: ${rzpyIdempotency}`);
-    console.log(`Signature for Event ID: ${rzpyWHSignature}`);
+    // The event id is useful for tracing; the signature is a secret-derived
+    // value and never belongs in a log line.
+    debugLog(`[WH]: event id ${rzpyIdempotency}`);
 
     if (!rzpyWHSignature || !rzpyIdempotency) {
       errorMessage = "Invalid request - No signature found";
@@ -700,7 +742,6 @@ export const verifyClientPayment: RequestHandler = async (
     }
 
     const { orderId, paymentId, signature } = req.body;
-    console.log("Client verification:", { orderId, paymentId, signature });
 
     if (!orderId || !paymentId || !signature) {
       res.status(400).json({

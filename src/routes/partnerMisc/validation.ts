@@ -64,7 +64,7 @@ export const partnerProfileSchema = z.object({
     .string()
     .min(2, "Invalid state")
     .max(100, "Maximum state name limit reached"),
-  pincode: z.string().regex(/[0-9]{6}/g, "Invalid pincode"),
+  pincode: z.string().regex(/^[0-9]{6}$/, "Invalid pincode"),
   // File upload validations
   logo: fileValidation,
   digitalSign: fileValidation,

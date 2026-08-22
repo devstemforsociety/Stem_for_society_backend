@@ -50,3 +50,60 @@ export const imageUpload = multer({
     callback(null, true);
   },
 });
+
+/**
+ * Types accepted for a partner's logo and digital signature.
+ *
+ * Deliberately the same set partnerProfileSchema already described (images
+ * plus PDF), so nothing that uploads successfully today starts failing - the
+ * point of this uploader is the limits, not a narrower allowlist.
+ */
+const ALLOWED_PROFILE_TYPES = new Set([
+  ...ALLOWED_IMAGE_TYPES,
+  "application/pdf",
+]);
+
+/**
+ * Logo / digital-signature uploads.
+ *
+ * These routes ran on a bare `multer({ storage: memoryStorage() })`: no size
+ * ceiling, no count ceiling and no type filter, which is exactly the hole
+ * imageUpload above exists to close. The schema's own file rules never ran
+ * either, because the handler validates `req.body` while multer puts files on
+ * `req.files`, so nothing was checking these at all.
+ */
+export const profileUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: MAX_FILE_BYTES,
+    files: 2,
+    fields: 40,
+    fieldSize: 1 * 1024 * 1024,
+  },
+  fileFilter: (_req, file, callback) => {
+    if (!ALLOWED_PROFILE_TYPES.has(file.mimetype)) {
+      const rejection = new Error(
+        "Only JPEG, PNG, WebP, GIF or PDF files can be uploaded.",
+      );
+      rejection.name = "UnsupportedImageType";
+      callback(rejection);
+      return;
+    }
+    callback(null, true);
+  },
+});
+
+/**
+ * The Content-Type to store an upload under.
+ *
+ * The browser's declared mimetype was passed straight to Supabase, and these
+ * objects are served from a public bucket - so a partner could upload
+ * `text/html` and have it served as a live page on the storage domain. Only a
+ * known-safe type is ever stored; anything unrecognised is served as an opaque
+ * download instead of being rendered.
+ */
+export function safeContentType(mimetype: string | undefined): string {
+  return mimetype && ALLOWED_PROFILE_TYPES.has(mimetype)
+    ? mimetype
+    : "application/octet-stream";
+}
