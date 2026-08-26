@@ -19,6 +19,7 @@ import {
 import express, { Application, Request, Response } from "express";
 import { db } from "./db/connection";
 import { isDevelopmentEnv } from "./utils/env";
+import { requestLogger } from "./utils/requestLog";
 import adminAuthRouter from "./routes/adminAuth/route";
 import adminPartnersRouter from "./routes/adminPartners/route";
 import adminStudentsRouter from "./routes/adminStudents/route";
@@ -55,6 +56,10 @@ app.use(express.json({ limit: "1mb" }));
 // this, every request looks like it comes from the proxy and the rate limits
 // below would be shared by all users at once.
 app.set("trust proxy", 1);
+
+// One line per request. debugLog is silent outside development, so without
+// this the deployed API produced no per-request output at all.
+app.use(requestLogger());
 
 app.use(securityHeaders());
 app.use(corsMiddleware());
