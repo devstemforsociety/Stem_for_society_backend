@@ -6,7 +6,10 @@ import {
   registerUserSchema,
   signInUserSchema,
   resetPasswordSchema,
+  googleAuthSchema,
 } from "./validation";
+import { supabase } from "../../supabase";
+import { randomBytes } from "crypto";
 import { db } from "../../db/connection";
 import { userTable } from "../../db/schema";
 import {
@@ -243,5 +246,126 @@ export const resetPassword: RequestHandler = async (req: Request, res: Response)
   } catch (error) {
     debugLog("🚀 ~ resetPassword ~ error:", error);
     res.status(500).json({ error: "Server error in resetting password" });
+  }
+};
+
+
+/**
+ * Google sign-in and sign-up.
+ *
+ * Replaces a frontend-only shim that derived a password from the Supabase user
+ * id - literally "Google" + the first six characters of the uuid + "123!" - and
+ * then called /auth/register and /auth/sign-in with it. That made every Google
+ * account's password computable by anyone who learned its Supabase id, and it
+ * routed identity decisions through an endpoint that knew nothing about Google:
+ * an address that already had a password account could never sign in with
+ * Google (register answered 409 and the browser reported "Authentication
+ * failed"), and a first name shorter than three characters failed validation.
+ *
+ * Here the access token is verified with Supabase, so the email is established
+ * by Google rather than asserted by the caller, and no password is involved at
+ * any point.
+ */
+export const googleAuth: RequestHandler = async (
+  req: Request,
+  res: Response,
+) => {
+  try {
+    const parsed = googleAuthSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ errors: createValidationError(parsed) });
+      return;
+    }
+
+    // The token is the only thing trusted here.
+    const { data: supabaseUser, error: supabaseError } =
+      await supabase.auth.getUser(parsed.data.accessToken);
+
+    if (supabaseError || !supabaseUser?.user?.email) {
+      res.status(401).json({
+        error: "Google sign-in could not be verified. Please try again.",
+      });
+      return;
+    }
+
+    const email = supabaseUser.user.email.trim().toLowerCase();
+    const metadata = supabaseUser.user.user_metadata ?? {};
+    const fullName =
+      (typeof metadata.full_name === "string" && metadata.full_name) ||
+      (typeof metadata.name === "string" && metadata.name) ||
+      "";
+    const [firstNameRaw, ...restName] = fullName.trim().split(/\s+/);
+    // Google accounts legitimately carry one-character names; the registration
+    // form's three-character minimum must not apply to an identity we did not
+    // ask the user to type.
+    const firstName = firstNameRaw || email.split("@")[0] || "User";
+    const lastName = restName.join(" ") || null;
+
+    let user = await db.query.userTable.findFirst({
+      where(fields) {
+        return emailEquals(fields.email, email);
+      },
+    });
+
+    if (!user) {
+      // A new account still needs a mobile number, which Google does not
+      // provide. The browser collects it and calls again.
+      if (!parsed.data.mobile) {
+        res.status(409).json({
+          code: "PHONE_REQUIRED",
+          error: "A mobile number is required to finish creating your account.",
+        });
+        return;
+      }
+
+      /**
+       * The column is not nullable and this account has no password to store.
+       * A long random value means the row can never be signed into through
+       * /auth/sign-in - the only way in is Google, or a password reset, which
+       * proves control of the mailbox first.
+       */
+      const unusablePassword = randomBytes(48).toString("hex");
+      const pwd = await generateHashPassword(unusablePassword);
+
+      try {
+        [user] = await db
+          .insert(userTable)
+          .values({
+            email,
+            firstName,
+            lastName,
+            mobile: parsed.data.mobile,
+            hash: pwd.hash,
+            salt: pwd.salt,
+          })
+          .returning();
+      } catch (error) {
+        if (error instanceof DatabaseError && error.code === "23505") {
+          if (error.constraint === "user_mobile_unique") {
+            res.status(409).json({
+              error: "That mobile number is already registered to another account.",
+            });
+            return;
+          }
+        }
+        throw error;
+      }
+    }
+
+    const userAuth = {
+      email: user.email,
+      firstName: user.firstName,
+      id: user.id,
+      mobile: user.mobile,
+      role: authRoleEnum.Enum.STUDENT,
+      lastName: user.lastName,
+      createdAt: user.createdAt,
+    };
+    const token = await signJWT(userAuth, JWT_SECRET_STU!);
+
+    res.json({ data: { token, user: userAuth } });
+  } catch (error) {
+    debugLog("🚀 ~ googleAuth ~ error:", error);
+    res.status(500).json({ error: "Server error in Google sign-in" });
   }
 };

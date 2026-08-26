@@ -48,3 +48,20 @@ export const resetPasswordSchema = z.object({
     .max(100, "Password too long")
     .regex(PASSWORD_REGEX, PASSWORD_RULE_MESSAGE),
 });
+
+/**
+ * Google sign-in / sign-up.
+ *
+ * The caller sends the Supabase access token it just received from the OAuth
+ * redirect; the server verifies that token with Supabase rather than trusting
+ * any identity claim in the body. `mobile` is only needed the first time, when
+ * the account is being created - every user needs one, and Google does not
+ * supply it.
+ */
+export const googleAuthSchema = z.object({
+  accessToken: z.string({ required_error: "Missing Google session" }).min(1),
+  mobile: z
+    .string()
+    .regex(/^[6789]\d{9}$/, "Mobile number is invalid")
+    .optional(),
+});
