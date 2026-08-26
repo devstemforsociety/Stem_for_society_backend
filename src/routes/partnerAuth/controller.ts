@@ -1,7 +1,7 @@
 import { debugLog } from "../../utils/logger";
 import { emailEquals } from "../../utils/email";
 import { Request, RequestHandler, Response } from "express";
-import { DatabaseError } from "pg";
+import { isUniqueViolation } from "../../utils/dbError";
 import { db } from "../../db/connection";
 import {
   accountTable,
@@ -228,16 +228,16 @@ export const registerUser: RequestHandler = async (
     });
   } catch (error) {
     debugLog("🚀 ~ registerUser ~ error:", error);
-    if (error instanceof DatabaseError) {
+    {
       // Expected duplicate, not a server fault - and a 5xx body is hidden
       // by the client, so the reason never reached the partner.
-      if (error.code === "23505" && error.constraint === "instructor_mobile_unique") {
+      if (isUniqueViolation(error, "instructor_mobile_unique")) {
         res.status(409).json({
           error: "Mobile number already exists",
         });
         return;
       }
-      if (error.code === "23505" && error.constraint === "instructor_email_unique") {
+      if (isUniqueViolation(error, "instructor_email_unique")) {
         res.status(409).json({
           error: "Email already registered",
         });

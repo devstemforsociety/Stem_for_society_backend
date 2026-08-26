@@ -18,7 +18,7 @@ import {
   verifyPassword,
 } from "../../utils/password";
 import { authRoleEnum, createValidationError } from "../../utils/validation";
-import { DatabaseError } from "pg";
+import { isUniqueViolation } from "../../utils/dbError";
 import {
   credentialFingerprint,
   signJWT,
@@ -56,7 +56,7 @@ export const registerUser: RequestHandler = async (
     });
   } catch (error) {
     debugLog("🚀 ~ constregisterUser:RequestHandler= ~ error:", error);
-    if (error instanceof DatabaseError) {
+    {
       /**
        * 409, not 500. These are expected outcomes of a unique constraint, not
        * server faults - and the frontend deliberately suppresses the body of
@@ -64,13 +64,13 @@ export const registerUser: RequestHandler = async (
        * "Email already registered" behind a generic "something went wrong"
        * and left the visitor with no idea what to change.
        */
-      if (error.code === "23505" && error.constraint === "user_mobile_unique") {
+      if (isUniqueViolation(error, "user_mobile_unique")) {
         res.status(409).json({
           error: "Mobile number already exists",
         });
         return;
       }
-      if (error.code === "23505" && error.constraint === "user_email_unique") {
+      if (isUniqueViolation(error, "user_email_unique")) {
         res.status(409).json({
           error: "Email already registered",
         });
@@ -340,13 +340,21 @@ export const googleAuth: RequestHandler = async (
           })
           .returning();
       } catch (error) {
-        if (error instanceof DatabaseError && error.code === "23505") {
-          if (error.constraint === "user_mobile_unique") {
-            res.status(409).json({
-              error: "That mobile number is already registered to another account.",
-            });
-            return;
-          }
+        if (isUniqueViolation(error, "user_mobile_unique")) {
+          res.status(409).json({
+            code: "MOBILE_TAKEN",
+            error:
+              "That mobile number is already registered to another account. " +
+              "Use a different number, or sign in with the account that owns it.",
+          });
+          return;
+        }
+        // Two tabs, or a second click before the first finished.
+        if (isUniqueViolation(error, "user_email_unique")) {
+          res.status(409).json({
+            error: "An account already exists for this email. Please sign in.",
+          });
+          return;
         }
         throw error;
       }
@@ -365,7 +373,7 @@ export const googleAuth: RequestHandler = async (
 
     res.json({ data: { token, user: userAuth } });
   } catch (error) {
-    debugLog("🚀 ~ googleAuth ~ error:", error);
+    console.error("[auth] Google sign-in failed:", error);
     res.status(500).json({ error: "Server error in Google sign-in" });
   }
 };
