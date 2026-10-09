@@ -1,11 +1,11 @@
 name: Docker Verification
-
 on:
-  pull_request:
+  push:
     branches:
+      - testing
       - main
       - master
-  push:
+  pull_request:
     branches:
       - main
       - master
